@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>User Dashboard</h2>
+    <div id="user-info"></div>
+    <button onclick="logout()">Logout</button>
+
+    <script>
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (!user) location.href = "/";
+
+      document.getElementById("user-info").innerHTML = `
+            <p>Name: ${user.email.split("@")[0]}</p>
+            <p>Username: ${user.email.split("@")[0]}</p>
+            <p>Email: ${user.email}</p>
+            <p>Role: ${user.role}</p>
+        `;
+
+      function logout() {
+        localStorage.clear();
+        location.href = "/";
+      }
+    </script>
+  </body>
+</html>

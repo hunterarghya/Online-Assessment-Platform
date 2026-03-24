@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Django Auth System</title>
+  </head>
+  <body>
+    <nav>
+      <button id="tab-login" onclick="showAuth('login')">LOGIN</button>
+      <button id="tab-register" onclick="showAuth('register')">REGISTER</button>
+    </nav>
+
+    <div class="auth-container">
+      <section id="register-section" style="display: none">
+        <h3>Create Account</h3>
+        <input type="email" id="reg-email" placeholder="Email" /><br />
+        <input type="password" id="reg-password" placeholder="Password" /><br />
+        <select id="reg-role">
+          <option value="STUDENT">Student</option>
+          <option value="TEACHER">Teacher</option></select
+        ><br />
+        <button onclick="handleRegister()">Register</button>
+
+        <div id="reg-otp-section" style="display: none">
+          <p>Check your email for the OTP</p>
+          <input type="text" id="reg-otp" placeholder="Enter OTP" /><br />
+          <button onclick="handleVerifyRegistration()">
+            Verify & Activate
+          </button>
+        </div>
+      </section>
+
+      <section id="login-section">
+        <h3>Login</h3>
+        <input type="email" id="login-email" placeholder="Email" /><br />
+        <input
+          type="password"
+          id="login-password"
+          placeholder="Password"
+        /><br />
+        <button onclick="handleLogin()">Login</button><br />
+        <a href="#" onclick="toggleModal(true)">Forgot Password?</a>
+      </section>
+
+      <hr />
+
+      <button onclick="handleGoogleLogin()">Sign in with Google</button>
+    </div>
+
+    <div
+      id="fp-modal"
+      style="
+        display: none;
+        border: 1px solid black;
+        padding: 20px;
+        margin-top: 20px;
+      "
+    >
+      <h3>Reset Password</h3>
+      <div id="fp-step-1">
+        <input
+          type="email"
+          id="fp-email"
+          placeholder="Enter your email"
+        /><br />
+        <button onclick="handleForgotPassword()">Send Reset OTP</button>
+      </div>
+      <div id="fp-step-2" style="display: none">
+        <input type="text" id="fp-otp" placeholder="Enter OTP" /><br />
+        <input
+          type="password"
+          id="fp-new-password"
+          placeholder="New Password"
+        /><br />
+        <button onclick="handleResetPassword()">Change Password</button>
+      </div>
+      <button onclick="toggleModal(false)">Close</button>
+    </div>
+
+    <script>
+      const API_BASE = "/api/auth";
+
+      // UI Toggles
+      function showAuth(type) {
+        document.getElementById("login-section").style.display =
+          type === "login" ? "block" : "none";
+        document.getElementById("register-section").style.display =
+          type === "register" ? "block" : "none";
+      }
+
+      function toggleModal(show) {
+        document.getElementById("fp-modal").style.display = show
+          ? "block"
+          : "none";
+      }
+
+      // Logic: Register
+      async function handleRegister() {
+        const email = document.getElementById("reg-email").value;
+        const password = document.getElementById("reg-password").value;
+        const role = document.getElementById("reg-role").value;
+
+        const res = await fetch(`${API_BASE}/register/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, role }),
+        });
+
+        if (res.ok) {
+          alert("OTP Sent! Please check your email.");
+          document.getElementById("reg-otp-section").style.display = "block";
+        } else {
+          const data = await res.json();
+          alert("Error: " + JSON.stringify(data));
+        }
+      }
+
+      // Logic: Verify OTP after Registration
+      async function handleVerifyRegistration() {
+        const email = document.getElementById("reg-email").value;
+        const otp = document.getElementById("reg-otp").value;
+
+        const res = await fetch(`${API_BASE}/verify-otp/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp }),
+        });
+
+        if (res.ok) {
+          alert("Account verified successfully! You can now login.");
+          showAuth("login");
+        } else {
+          alert("Invalid OTP");
+        }
+      }
+
+      // Logic: Login
+      async function handleLogin() {
+        const email = document.getElementById("login-email").value;
+        const password = document.getElementById("login-password").value;
+
+        const res = await fetch(`${API_BASE}/login/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem("token", data.access);
+          localStorage.setItem("user", JSON.stringify(data.user));
+          window.location.href = "/dashboard/";
+        } else {
+          alert(data.error || "Login Failed");
+        }
+      }
+
+      // Logic: Forgot Password Step 1 (Send OTP)
+      async function handleForgotPassword() {
+        const email = document.getElementById("fp-email").value;
+        const res = await fetch(`${API_BASE}/password-reset/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+
+        if (res.ok) {
+          document.getElementById("fp-step-1").style.display = "none";
+          document.getElementById("fp-step-2").style.display = "block";
+        } else {
+          alert("User not found");
+        }
+      }
+
+      // Logic: Forgot Password Step 2 (Reset)
+      async function handleResetPassword() {
+        const email = document.getElementById("fp-email").value;
+        const otp = document.getElementById("fp-otp").value;
+        const password = document.getElementById("fp-new-password").value;
+
+        const res = await fetch(`${API_BASE}/reset-password/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp, password }),
+        });
+
+        if (res.ok) {
+          alert("Password changed! Please login.");
+          toggleModal(false);
+          showAuth("login");
+        } else {
+          alert("Invalid OTP or error.");
+        }
+      }
+
+      // Google Redirect
+      function handleGoogleLogin() {
+        window.location.href = `${API_BASE}/google/`;
+      }
+    </script>
+  </body>
+</html>
