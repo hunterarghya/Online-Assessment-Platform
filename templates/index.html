@@ -3,58 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <title>Django Auth System</title>
+    <style>
+      .hidden {
+        display: none;
+      }
+      .portal-header {
+        background: #f0f0f0;
+        padding: 10px;
+        margin-bottom: 20px;
+        font-weight: bold;
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
-    <nav>
-      <button id="tab-login" onclick="showAuth('login')">LOGIN</button>
-      <button id="tab-register" onclick="showAuth('register')">REGISTER</button>
-    </nav>
+    <div id="landing-page">
+      <h2>Welcome. Please select your portal:</h2>
+      <button onclick="enterPortal('STUDENT')">Login as Student</button>
+      <button onclick="enterPortal('TEACHER')">Login as Teacher</button>
+    </div>
 
-    <div class="auth-container">
-      <section id="register-section" style="display: none">
-        <h3>Create Account</h3>
-        <input type="email" id="reg-email" placeholder="Email" /><br />
-        <input type="password" id="reg-password" placeholder="Password" /><br />
-        <select id="reg-role">
-          <option value="STUDENT">Student</option>
-          <option value="TEACHER">Teacher</option></select
-        ><br />
-        <button onclick="handleRegister()">Register</button>
+    <div id="auth-page" class="hidden">
+      <div id="portal-banner" class="portal-header"></div>
+      <button onclick="backToLanding()">← Change Portal</button>
 
-        <div id="reg-otp-section" style="display: none">
-          <p>Check your email for the OTP</p>
-          <input type="text" id="reg-otp" placeholder="Enter OTP" /><br />
-          <button onclick="handleVerifyRegistration()">
-            Verify & Activate
-          </button>
-        </div>
-      </section>
+      <nav style="margin-top: 10px">
+        <button id="tab-login" onclick="showAuth('login')">LOGIN</button>
+        <button id="tab-register" onclick="showAuth('register')">
+          REGISTER
+        </button>
+      </nav>
 
-      <section id="login-section">
-        <h3>Login</h3>
-        <input type="email" id="login-email" placeholder="Email" /><br />
-        <input
-          type="password"
-          id="login-password"
-          placeholder="Password"
-        /><br />
-        <button onclick="handleLogin()">Login</button><br />
-        <a href="#" onclick="toggleModal(true)">Forgot Password?</a>
-      </section>
+      <div class="auth-container">
+        <section id="register-section" class="hidden">
+          <h3>Create Account</h3>
+          <input type="email" id="reg-email" placeholder="Email" /><br />
+          <input
+            type="password"
+            id="reg-password"
+            placeholder="Password"
+          /><br />
+          <button onclick="handleRegister()">Register</button>
 
-      <hr />
+          <div id="reg-otp-section" class="hidden">
+            <p>Check your email for the OTP</p>
+            <input type="text" id="reg-otp" placeholder="Enter OTP" /><br />
+            <button onclick="handleVerifyRegistration()">
+              Verify & Activate
+            </button>
+          </div>
+        </section>
 
-      <button onclick="handleGoogleLogin()">Sign in with Google</button>
+        <section id="login-section">
+          <h3>Login</h3>
+          <input type="email" id="login-email" placeholder="Email" /><br />
+          <input
+            type="password"
+            id="login-password"
+            placeholder="Password"
+          /><br />
+          <button onclick="handleLogin()">Login</button><br />
+          <a href="#" onclick="toggleModal(true)">Forgot Password?</a>
+        </section>
+
+        <hr />
+        <button onclick="handleGoogleLogin()">Sign in with Google</button>
+      </div>
     </div>
 
     <div
       id="fp-modal"
-      style="
-        display: none;
-        border: 1px solid black;
-        padding: 20px;
-        margin-top: 20px;
-      "
+      class="hidden"
+      style="border: 1px solid black; padding: 20px; margin-top: 20px"
     >
       <h3>Reset Password</h3>
       <div id="fp-step-1">
@@ -65,7 +85,7 @@
         /><br />
         <button onclick="handleForgotPassword()">Send Reset OTP</button>
       </div>
-      <div id="fp-step-2" style="display: none">
+      <div id="fp-step-2" class="hidden">
         <input type="text" id="fp-otp" placeholder="Enter OTP" /><br />
         <input
           type="password"
@@ -79,55 +99,67 @@
 
     <script>
       const API_BASE = "/api/auth";
+      let currentPortal = ""; // State: 'STUDENT' or 'TEACHER'
+
+      // Portal Entry Logic
+      function enterPortal(role) {
+        currentPortal = role;
+        document.getElementById("landing-page").classList.add("hidden");
+        document.getElementById("auth-page").classList.remove("hidden");
+        document.getElementById("portal-banner").innerText = role + " PORTAL";
+        showAuth("login");
+      }
+
+      function backToLanding() {
+        document.getElementById("landing-page").classList.remove("hidden");
+        document.getElementById("auth-page").classList.add("hidden");
+      }
 
       // UI Toggles
       function showAuth(type) {
-        document.getElementById("login-section").style.display =
-          type === "login" ? "block" : "none";
-        document.getElementById("register-section").style.display =
-          type === "register" ? "block" : "none";
+        document
+          .getElementById("login-section")
+          .classList.toggle("hidden", type !== "login");
+        document
+          .getElementById("register-section")
+          .classList.toggle("hidden", type !== "register");
       }
 
       function toggleModal(show) {
-        document.getElementById("fp-modal").style.display = show
-          ? "block"
-          : "none";
+        document.getElementById("fp-modal").classList.toggle("hidden", !show);
       }
 
-      // Logic: Register
+      // Logic: Register (Passes currentPortal as role)
       async function handleRegister() {
         const email = document.getElementById("reg-email").value;
         const password = document.getElementById("reg-password").value;
-        const role = document.getElementById("reg-role").value;
 
         const res = await fetch(`${API_BASE}/register/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, role }),
+          body: JSON.stringify({ email, password, role: currentPortal }),
         });
 
         if (res.ok) {
-          alert("OTP Sent! Please check your email.");
-          document.getElementById("reg-otp-section").style.display = "block";
+          alert("OTP Sent!");
+          document.getElementById("reg-otp-section").classList.remove("hidden");
         } else {
           const data = await res.json();
           alert("Error: " + JSON.stringify(data));
         }
       }
 
-      // Logic: Verify OTP after Registration
+      // Logic: Verify
       async function handleVerifyRegistration() {
         const email = document.getElementById("reg-email").value;
         const otp = document.getElementById("reg-otp").value;
-
         const res = await fetch(`${API_BASE}/verify-otp/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, otp }),
         });
-
         if (res.ok) {
-          alert("Account verified successfully! You can now login.");
+          alert("Verified!");
           showAuth("login");
         } else {
           alert("Invalid OTP");
@@ -142,7 +174,7 @@
         const res = await fetch(`${API_BASE}/login/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, role: currentPortal }),
         });
 
         const data = await res.json();
@@ -155,7 +187,6 @@
         }
       }
 
-      // Logic: Forgot Password Step 1 (Send OTP)
       async function handleForgotPassword() {
         const email = document.getElementById("fp-email").value;
         const res = await fetch(`${API_BASE}/password-reset/`, {
@@ -163,39 +194,31 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
         });
-
         if (res.ok) {
-          document.getElementById("fp-step-1").style.display = "none";
-          document.getElementById("fp-step-2").style.display = "block";
-        } else {
-          alert("User not found");
+          document.getElementById("fp-step-1").classList.add("hidden");
+          document.getElementById("fp-step-2").classList.remove("hidden");
         }
       }
 
-      // Logic: Forgot Password Step 2 (Reset)
       async function handleResetPassword() {
         const email = document.getElementById("fp-email").value;
         const otp = document.getElementById("fp-otp").value;
         const password = document.getElementById("fp-new-password").value;
-
         const res = await fetch(`${API_BASE}/reset-password/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, otp, password }),
         });
-
         if (res.ok) {
-          alert("Password changed! Please login.");
+          alert("Success!");
           toggleModal(false);
           showAuth("login");
-        } else {
-          alert("Invalid OTP or error.");
         }
       }
 
-      // Google Redirect
+      // Google Redirect with Role
       function handleGoogleLogin() {
-        window.location.href = `${API_BASE}/google/`;
+        window.location.href = `${API_BASE}/google/?role=${currentPortal}`;
       }
     </script>
   </body>
