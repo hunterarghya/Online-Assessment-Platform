@@ -1,20 +1,297 @@
 <!doctype html>
 <html>
+  <head>
+    <title>Classroom Dashboard</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        margin: 0;
+        background: #f0f2f5;
+      }
+      #sidebar {
+        width: 250px;
+        background: #1c1e21;
+        color: white;
+        height: 100vh;
+        padding: 20px;
+        position: fixed;
+      }
+      #content {
+        margin-left: 290px;
+        padding: 20px;
+        width: 100%;
+      }
+
+      .group-box {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 20px;
+        border: 2px dashed #ccc;
+        padding: 20px;
+        border-radius: 10px;
+        min-height: 100px;
+      }
+      .group-card {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+      }
+      .modal-content {
+        background: white;
+        margin: 5% auto;
+        padding: 25px;
+        width: 60%;
+        border-radius: 10px;
+      }
+
+      .action-btn {
+        padding: 8px 15px;
+        margin: 5px;
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+      }
+      .btn-create {
+        background: #28a745;
+        color: white;
+      }
+      .btn-approve {
+        background: #007bff;
+        color: white;
+      }
+      .btn-reject {
+        background: #dc3545;
+        color: white;
+      }
+
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
   <body>
-    <h2>User Dashboard</h2>
-    <div id="user-info"></div>
-    <button onclick="logout()">Logout</button>
+    <div id="sidebar">
+      <h3>Profile</h3>
+      <p id="user-email"></p>
+      <p id="user-role" style="color: #007bff"></p>
+      <hr />
+      <button
+        class="action-btn btn-reject"
+        onclick="logout()"
+        style="width: 100%"
+      >
+        Logout
+      </button>
+    </div>
+
+    <div id="content">
+      <h2 id="welcome-msg">Dashboard</h2>
+
+      <div id="teacher-actions" class="hidden">
+        <button class="action-btn btn-create" onclick="showCreateForm()">
+          + New Group
+        </button>
+      </div>
+      <div id="student-actions" class="hidden">
+        <button class="action-btn btn-approve" onclick="showJoinForm()">
+          Join a Group
+        </button>
+      </div>
+
+      <h3>Your Groups</h3>
+      <div id="group-grid" class="group-box"></div>
+    </div>
+
+    <div id="form-modal" class="modal">
+      <div class="modal-content">
+        <h3 id="form-title">Action</h3>
+        <div id="create-inputs" class="hidden">
+          <input
+            id="new-name"
+            placeholder="Group Name"
+            style="width: 90%; margin-bottom: 10px"
+          /><br />
+          <textarea
+            id="new-desc"
+            placeholder="Description"
+            style="width: 90%"
+          ></textarea>
+        </div>
+        <div id="join-inputs" class="hidden">
+          <input
+            id="join-code"
+            placeholder="Paste Invite Code Here"
+            style="width: 90%"
+          />
+        </div>
+        <br />
+        <button class="action-btn btn-approve" onclick="submitForm()">
+          Submit
+        </button>
+        <button onclick="closeModals()">Cancel</button>
+      </div>
+    </div>
+
+    <div id="detail-modal" class="modal">
+      <div class="modal-content">
+        <h2 id="det-name"></h2>
+        <p id="det-desc"></p>
+        <div id="invite-section" style="background: #e9ecef; padding: 10px">
+          Invite Code: <strong id="det-code"></strong>
+        </div>
+
+        <div id="management-section">
+          <h4>Pending Requests</h4>
+          <div id="list-pending"></div>
+          <hr />
+          <h4>Members</h4>
+          <div id="list-approved"></div>
+        </div>
+        <button onclick="closeModals()">Close</button>
+      </div>
+    </div>
 
     <script>
       const user = JSON.parse(localStorage.getItem("user"));
+      const token = localStorage.getItem("token");
       if (!user) location.href = "/";
 
-      document.getElementById("user-info").innerHTML = `
-            <p>Name: ${user.email.split("@")[0]}</p>
-            <p>Username: ${user.email.split("@")[0]}</p>
-            <p>Email: ${user.email}</p>
-            <p>Role: ${user.role}</p>
-        `;
+      document.getElementById("user-email").innerText = user.email;
+      document.getElementById("user-role").innerText = user.role;
+      if (user.role === "TEACHER")
+        document.getElementById("teacher-actions").classList.remove("hidden");
+      else
+        document.getElementById("student-actions").classList.remove("hidden");
+
+      loadGroups();
+
+      async function loadGroups() {
+        const res = await fetch("/api/classroom/groups/", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const groups = await res.json();
+        const grid = document.getElementById("group-grid");
+        grid.innerHTML = groups.length === 0 ? "<p>No groups found.</p>" : "";
+        groups.forEach((g) => {
+          grid.innerHTML += `<div class="group-card" onclick="viewGroup(${g.id})">
+                    <strong>${g.name}</strong><br><small>${g.teacher_name}</small>
+                </div>`;
+        });
+      }
+
+      function showCreateForm() {
+        document.getElementById("form-title").innerText = "Create New Group";
+        document.getElementById("create-inputs").classList.remove("hidden");
+        document.getElementById("join-inputs").classList.add("hidden");
+        document.getElementById("form-modal").style.display = "block";
+      }
+
+      function showJoinForm() {
+        document.getElementById("form-title").innerText = "Join Group";
+        document.getElementById("join-inputs").classList.remove("hidden");
+        document.getElementById("create-inputs").classList.add("hidden");
+        document.getElementById("form-modal").style.display = "block";
+      }
+
+      async function submitForm() {
+        if (user.role === "TEACHER") {
+          const name = document.getElementById("new-name").value;
+          const description = document.getElementById("new-desc").value;
+          await fetch("/api/classroom/groups/", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name, description }),
+          });
+        } else {
+          const code = document.getElementById("join-code").value;
+          await fetch("/api/classroom/groups/join_by_code/", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ invite_code: code }),
+          });
+        }
+        closeModals();
+        loadGroups();
+      }
+
+      async function viewGroup(id) {
+        const res = await fetch(`/api/classroom/groups/${id}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const g = await res.json();
+        document.getElementById("det-name").innerText = g.name;
+        document.getElementById("det-desc").innerText = g.description;
+        document.getElementById("det-code").innerText = g.invite_code;
+
+        const memRes = await fetch(`/api/classroom/groups/${id}/members/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const members = await memRes.json();
+
+        const pend = document.getElementById("list-pending");
+        const appr = document.getElementById("list-approved");
+        pend.innerHTML = "";
+        appr.innerHTML = "";
+
+        members.forEach((m) => {
+          const row = `<div>${m.user_details.email} 
+                    ${
+                      user.role === "TEACHER" && m.status === "PENDING"
+                        ? `<button onclick="respond(${id}, ${m.id}, 'approve')">Accept</button>
+                         <button onclick="respond(${id}, ${m.id}, 'reject')">Reject</button>`
+                        : ""
+                    }
+                    ${
+                      user.role === "TEACHER" && m.status === "APPROVED"
+                        ? `<button onclick="respond(${id}, ${m.id}, 'reject')">Remove</button>`
+                        : ""
+                    }
+                </div>`;
+          if (m.status === "PENDING") pend.innerHTML += row;
+          else appr.innerHTML += row;
+        });
+
+        document.getElementById("detail-modal").style.display = "block";
+      }
+
+      async function respond(groupId, memId, action) {
+        await fetch(`/api/classroom/groups/${groupId}/respond_to_request/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ membership_id: memId, action: action }),
+        });
+        viewGroup(groupId);
+      }
+
+      function closeModals() {
+        document
+          .querySelectorAll(".modal")
+          .forEach((m) => (m.style.display = "none"));
+      }
 
       function logout() {
         localStorage.clear();
