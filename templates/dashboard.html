@@ -154,6 +154,24 @@
         <div id="invite-section" style="background: #e9ecef; padding: 10px">
           Invite Code: <strong id="det-code"></strong>
         </div>
+        <h2 id="det-name"></h2>
+        <div id="teacher-edit-controls" class="hidden">
+          <button class="action-btn btn-approve" onclick="enableEdit()">
+            Edit
+          </button>
+          <button class="action-btn btn-reject" onclick="deleteGroup()">
+            Delete Group
+          </button>
+        </div>
+        <div id="edit-fields" class="hidden">
+          <input id="edit-name" style="width: 90%" /><br />
+          <textarea id="edit-desc" style="width: 90%"></textarea><br />
+          <button class="action-btn btn-create" onclick="saveChanges()">
+            Save
+          </button>
+          <button onclick="cancelEdit()">Cancel</button>
+        </div>
+        <p id="det-desc"></p>
 
         <div id="management-section">
           <h4>Pending Requests</h4>
@@ -240,9 +258,18 @@
           headers: { Authorization: `Bearer ${token}` },
         });
         const g = await res.json();
+        currentGroupId = id;
         document.getElementById("det-name").innerText = g.name;
         document.getElementById("det-desc").innerText = g.description;
         document.getElementById("det-code").innerText = g.invite_code;
+
+        // Show edit controls only for teachers
+        const editControls = document.getElementById("teacher-edit-controls");
+        if (user.role === "TEACHER") {
+          editControls.classList.remove("hidden");
+        } else {
+          editControls.classList.add("hidden");
+        }
 
         const memRes = await fetch(`/api/classroom/groups/${id}/members/`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -291,6 +318,63 @@
         document
           .querySelectorAll(".modal")
           .forEach((m) => (m.style.display = "none"));
+      }
+
+      let currentGroupId = null;
+
+      function enableEdit() {
+        document.getElementById("edit-name").value =
+          document.getElementById("det-name").innerText;
+        document.getElementById("edit-desc").value =
+          document.getElementById("det-desc").innerText;
+        document.getElementById("edit-fields").classList.remove("hidden");
+        document.getElementById("det-name").classList.add("hidden");
+        document.getElementById("det-desc").classList.add("hidden");
+      }
+
+      async function saveChanges() {
+        const name = document.getElementById("edit-name").value;
+        const description = document.getElementById("edit-desc").value;
+
+        const res = await fetch(`/api/classroom/groups/${currentGroupId}/`, {
+          method: "PATCH", // Use PATCH for partial updates
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name, description }),
+        });
+
+        if (res.ok) {
+          cancelEdit();
+          viewGroup(currentGroupId); // Refresh modal
+          loadGroups(); // Refresh grid
+        }
+      }
+
+      async function deleteGroup() {
+        if (
+          !confirm(
+            "Are you sure? This will delete all memberships and data for this group.",
+          )
+        )
+          return;
+
+        const res = await fetch(`/api/classroom/groups/${currentGroupId}/`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          closeModals();
+          loadGroups();
+        }
+      }
+
+      function cancelEdit() {
+        document.getElementById("edit-fields").classList.add("hidden");
+        document.getElementById("det-name").classList.remove("hidden");
+        document.getElementById("det-desc").classList.remove("hidden");
       }
 
       function logout() {

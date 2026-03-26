@@ -19,6 +19,23 @@ class GroupViewSet(viewsets.ModelViewSet):
         # Automatically set the logged-in teacher as the owner
         serializer.save(teacher=self.request.user)
 
+    def perform_update(self, serializer):
+        # Ensure only the owner can update
+        group = self.get_object()
+        if group.teacher == self.request.user:
+            serializer.save()
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to edit this group.")
+
+    def perform_destroy(self, instance):
+        # Ensure only the owner can delete
+        if instance.teacher == self.request.user:
+            instance.delete()
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to delete this group.")
+
     # ACTION: Join a group using an invite code
     @action(detail=False, methods=['post'])
     def join_by_code(self, request):
