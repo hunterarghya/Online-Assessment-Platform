@@ -1,0 +1,669 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Test Composer</title>
+    <script src="https://unpkg.com/imagekit-javascript/dist/imagekit.min.js"></script>
+    <style>
+      .hidden {
+        display: none;
+      }
+      .question-card {
+        border: 1px solid #ccc;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 8px;
+        background: #fff;
+      }
+      .composer-box {
+        border: 2px solid #007bff;
+        padding: 20px;
+        background: #f9f9f9;
+        margin-top: 20px;
+      }
+      .option-row {
+        margin: 5px 0;
+      }
+      .topic-tag {
+        display: inline-block;
+        background: #e0e0e0;
+        padding: 2px 8px;
+        margin: 2px;
+        border-radius: 12px;
+        font-size: 0.8em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header-actions">
+      <button class="btn-add" onclick="openComposer()">+ Add Question</button>
+      <button
+        class="btn-finish"
+        onclick="publishTest()"
+        style="background: #28a745; color: white"
+      >
+        Finish & Publish
+      </button>
+      <button onclick="location.href='/dashboard/'">Back to Dashboard</button>
+    </div>
+
+    <h2 id="test-title">Loading Test...</h2>
+    <div id="questions-list"></div>
+
+    <div id="composer" class="composer-box hidden">
+      <h3>New Question</h3>
+
+      <div class="field-group">
+        <label>Question Type:</label>
+        <select id="q-type" onchange="renderTypeSpecificFields()">
+          <option value="MCQ">Multiple Choice (MCQ)</option>
+          <option value="NUMERICAL">Numerical</option>
+          <option value="CODE">Coding</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label>Question Text:</label><br />
+        <textarea id="q-text" rows="4" style="width: 100%"></textarea>
+      </div>
+
+      <div class="field-group">
+        <label>Add Images:</label>
+        <input
+          type="file"
+          id="q-image-input"
+          multiple
+          onchange="uploadImagesToImageKit(this)"
+        />
+        <div id="image-preview-urls"></div>
+      </div>
+
+      <div id="mcq-fields" class="type-fields">
+        <h4>Options</h4>
+        <div id="options-container"></div>
+        <button onclick="addMCQOption()">+ Add Option</button>
+      </div>
+
+      <div id="numerical-fields" class="type-fields hidden">
+        <label>Correct Numerical Answer:</label>
+        <input type="number" step="any" id="q-numerical-ans" />
+      </div>
+
+      <div id="code-fields" class="type-fields hidden">
+        <h4>Test Cases</h4>
+        <div id="testcase-container"></div>
+        <button onclick="addTestCase()">+ Add Test Case</button>
+      </div>
+
+      <hr />
+
+      <div class="meta-fields">
+        <label>Marks:</label> <input type="number" id="q-marks" value="4" />
+        <label>Negative Marks:</label>
+        <input type="number" id="q-neg-marks" value="1" />
+
+        <div id="individual-timer-box" class="hidden">
+          <label>Time Limit (Seconds):</label>
+          <input type="number" id="q-time" value="60" />
+        </div>
+      </div>
+
+      <div class="topic-picker" style="position: relative; margin-top: 15px">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold"
+          >Topics:</label
+        >
+        <div
+          id="tag-container"
+          style="
+            border: 1px solid #ccc;
+            padding: 5px;
+            border-radius: 4px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            background: white;
+            min-height: 40px;
+            align-items: center;
+          "
+        >
+          <input
+            type="text"
+            id="topic-input"
+            placeholder="Type topic and press Enter..."
+            style="
+              border: none;
+              outline: none;
+              flex: 1;
+              min-width: 150px;
+              padding: 5px;
+            "
+          />
+        </div>
+        <div
+          id="topic-dropdown"
+          class="hidden"
+          style="
+            border: 1px solid #ddd;
+            background: white;
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            max-height: 150px;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 0 0 4px 4px;
+          "
+        ></div>
+      </div>
+
+      <div style="margin-top: 20px">
+        <button
+          onclick="saveQuestionToDB()"
+          style="background: #007bff; color: white; padding: 10px 20px"
+        >
+          Done (Add Question)
+        </button>
+        <button onclick="closeComposer()">Cancel</button>
+      </div>
+    </div>
+
+    <script>
+      const urlParams = new URLSearchParams(window.location.search);
+      const testId = urlParams.get("id");
+      const token = localStorage.getItem("token");
+      let testConfig = {};
+      let uploadedImageUrls = [];
+      let editingQuestionId = null;
+
+      const imagekit = new ImageKit({
+        publicKey: "public_Vtu0tcQpZSZZYAYSshssl++MVVQ=",
+        urlEndpoint: "https://ik.imagekit.io/8hddej3mj",
+        authenticationEndpoint: "/api/auth/imagekit-auth/",
+      });
+
+      async function init() {
+        const res = await fetch(`/api/testing/tests/${testId}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        testConfig = await res.json();
+        document.getElementById("test-title").innerText =
+          `Editing: ${testConfig.title}`;
+
+        if (testConfig.timer_type === "INDIVIDUAL") {
+          document
+            .getElementById("individual-timer-box")
+            .classList.remove("hidden");
+        }
+        loadQuestions();
+      }
+
+      async function loadQuestions() {
+        const res = await fetch(`/api/testing/tests/${testId}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        const list = document.getElementById("questions-list");
+        list.innerHTML = "";
+
+        if (data.questions) {
+          data.questions.forEach((q) => appendQuestionToList(q));
+        }
+      }
+
+      function openComposer() {
+        if (!editingQuestionId) {
+          resetComposer();
+        }
+        const composer = document.getElementById("composer");
+        composer.classList.remove("hidden");
+
+        const isPublished = testConfig.is_published;
+        const saveBtn = document.querySelector(
+          "#composer button[onclick='saveQuestionToDB()']",
+        );
+        const addOptBtn = document.querySelector("#mcq-fields button");
+        const addTcBtn = document.querySelector("#code-fields button");
+
+        // Logic for Published Test
+        if (isPublished) {
+          saveBtn.style.display = "none"; // Hide "Done"
+          if (addOptBtn) addOptBtn.style.display = "none"; // Hide "+ Add Option"
+          if (addTcBtn) addTcBtn.style.display = "none"; // Hide "+ Add Test Case"
+          document.getElementById("q-image-input").style.display = "none"; // Hide file upload
+
+          document.querySelector(
+            "#composer button[onclick='closeComposer()']",
+          ).innerText = "Back to Questions";
+        } else {
+          saveBtn.style.display = "inline-block";
+          if (addOptBtn) addOptBtn.style.display = "inline-block";
+          if (addTcBtn) addTcBtn.style.display = "inline-block";
+          document.getElementById("q-image-input").style.display =
+            "inline-block";
+          document.querySelector(
+            "#composer button[onclick='closeComposer()']",
+          ).innerText = "Cancel";
+
+          saveBtn.innerText = editingQuestionId
+            ? "Update Question"
+            : "Done (Add Question)";
+        }
+      }
+
+      function closeComposer() {
+        document.getElementById("composer").classList.add("hidden");
+        resetComposer();
+      }
+
+      function renderTypeSpecificFields() {
+        const type = document.getElementById("q-type").value;
+        document
+          .querySelectorAll(".type-fields")
+          .forEach((f) => f.classList.add("hidden"));
+        if (type === "MCQ")
+          document.getElementById("mcq-fields").classList.remove("hidden");
+        if (type === "NUMERICAL")
+          document
+            .getElementById("numerical-fields")
+            .classList.remove("hidden");
+        if (type === "CODE")
+          document.getElementById("code-fields").classList.remove("hidden");
+      }
+
+      function addMCQOption() {
+        const container = document.getElementById("options-container");
+        const div = document.createElement("div");
+        div.className = "option-row";
+        div.innerHTML = `
+            <input type="checkbox" class="is-correct"> 
+            <input type="text" class="opt-text" placeholder="Option text">
+            <button onclick="this.parentElement.remove()">x</button>
+        `;
+        container.appendChild(div);
+      }
+
+      function addTestCase() {
+        const container = document.getElementById("testcase-container");
+        const div = document.createElement("div");
+        div.innerHTML = `
+            <textarea class="tc-input" placeholder="Input"></textarea>
+            <textarea class="tc-output" placeholder="Expected Output"></textarea>
+            <label>Hidden?</label><input type="checkbox" class="tc-hidden">
+            <button onclick="this.parentElement.remove()">x</button>
+        `;
+        container.appendChild(div);
+      }
+
+      async function saveQuestionToDB() {
+        const type = document.getElementById("q-type").value;
+
+        // 1. Build the base payload
+        const payload = {
+          text: document.getElementById("q-text").value,
+          question_type: type,
+          marks: document.getElementById("q-marks").value,
+          negative_marks: document.getElementById("q-neg-marks").value,
+          individual_time_limit: document.getElementById("q-time").value,
+          topic_names: selectedTopics,
+          images: uploadedImageUrls.map((url) => ({ image_url: url })),
+        };
+
+        // Only set serial_no for NEW questions to avoid overwriting sequence during edits
+        if (!editingQuestionId) {
+          payload.serial_no =
+            document.querySelectorAll(".question-card").length + 1;
+        }
+
+        // 2. Add type-specific data
+        if (type === "MCQ") {
+          payload.options = Array.from(
+            document.querySelectorAll(".option-row"),
+          ).map((row) => ({
+            text: row.querySelector(".opt-text").value,
+            is_correct: row.querySelector(".is-correct").checked,
+          }));
+        } else if (type === "NUMERICAL") {
+          payload.correct_numerical =
+            document.getElementById("q-numerical-ans").value;
+        } else if (type === "CODE") {
+          payload.test_cases = Array.from(
+            document.querySelectorAll("#testcase-container > div"),
+          ).map((div) => ({
+            input_data: div.querySelector(".tc-input").value,
+            expected_output: div.querySelector(".tc-output").value,
+            is_hidden: div.querySelector(".tc-hidden").checked,
+          }));
+        }
+
+        // 3. Determine endpoint and method
+        let url = `/api/testing/tests/${testId}/add_question/`;
+        let method = "POST";
+
+        if (editingQuestionId) {
+          url = `/api/testing/questions/${editingQuestionId}/`;
+          method = "PATCH";
+        }
+
+        try {
+          const res = await fetch(url, {
+            method: method,
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (res.ok) {
+            const savedData = await res.json();
+            alert(
+              editingQuestionId
+                ? "Question updated successfully!"
+                : "Question added successfully!",
+            );
+
+            closeComposer();
+            resetComposer();
+            // Refresh the entire list to ensure everything (marks, order) is synced
+            loadQuestions();
+          } else {
+            const errData = await res.json();
+            alert("Error: " + JSON.stringify(errData));
+          }
+        } catch (error) {
+          console.error("Save failed:", error);
+          alert("Server communication error.");
+        }
+      }
+
+      function appendQuestionToList(q) {
+        const list = document.getElementById("questions-list");
+        const card = document.createElement("div");
+        card.className = "question-card";
+        card.id = `q-card-${q.id}`;
+
+        // Determine button labels and visibility based on publish status
+        const isPublished = testConfig.is_published;
+        const editBtnText = isPublished ? "View" : "Edit";
+        const deleteBtnHtml = isPublished
+          ? ""
+          : `<button onclick="deleteQuestion(${q.id})" style="background:#dc3545; color:white; border:none; padding:5px 10px; cursor:pointer; margin-left:5px;">Delete</button>`;
+
+        card.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <strong>Q${q.serial_no}:</strong> ${q.text.substring(0, 50)}... [${q.question_type}]
+        </div>
+        <div>
+            <button onclick='editQuestion(${JSON.stringify(q)})' style="background:#ffc107; border:none; padding:5px 10px; cursor:pointer;">${editBtnText}</button>
+            ${deleteBtnHtml}
+        </div>
+    </div>`;
+        list.appendChild(card);
+      }
+
+      async function publishTest() {
+        const res = await fetch(`/api/testing/tests/${testId}/`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ is_published: true }),
+        });
+        if (res.ok) {
+          alert("Test Published Successfully!");
+          location.href = "/dashboard/";
+        }
+      }
+
+      async function uploadImagesToImageKit(input) {
+        const files = input.files;
+        const previewContainer = document.getElementById("image-preview-urls");
+        const jwtToken = localStorage.getItem("token");
+
+        if (!files.length) return;
+
+        // Clear previous previews if needed, or show a "Uploading..." status
+        previewContainer.innerHTML += `<div id="upload-status">⏳ Uploading ${files.length} file(s)...</div>`;
+
+        for (let file of files) {
+          try {
+            const authResponse = await fetch("/api/auth/imagekit-auth/", {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${jwtToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (!authResponse.ok) {
+              throw new Error(
+                `Auth failed with status: ${authResponse.status}`,
+              );
+            }
+
+            const authData = await authResponse.json();
+
+            imagekit.upload(
+              {
+                file: file,
+                fileName: file.name,
+                folder: `/tests/test_${testId}/`,
+
+                token: authData.token,
+                signature: authData.signature,
+                expire: authData.expire,
+              },
+              function (err, result) {
+                if (err) {
+                  console.error("ImageKit Error:", err);
+                  previewContainer.innerHTML += `<div style="color:red;">❌ ${file.name} failed</div>`;
+                } else {
+                  uploadedImageUrls.push(result.url);
+
+                  const statusDiv = document.getElementById("upload-status");
+                  if (statusDiv) statusDiv.remove();
+                  previewContainer.innerHTML += `
+        <div style="display:inline-block; margin-right:10px; text-align:center;">
+            <img src="${result.url}" style="height:50px; display:block; margin-bottom:2px;">
+            <span style="color:green; font-size:10px;">✅ Uploaded</span>
+        </div>`;
+
+                  console.log("Upload successful:", result.url);
+                }
+              },
+            );
+          } catch (error) {
+            console.error("Pre-upload Auth Error:", error);
+            alert(
+              "Could not authenticate with image server. Are you logged in?",
+            );
+            break;
+          }
+        }
+      }
+
+      async function deleteQuestion(qId) {
+        if (!confirm("Are you sure you want to delete this question?")) return;
+
+        const res = await fetch(`/api/testing/questions/${qId}/`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          document.getElementById(`q-card-${qId}`).remove();
+          alert("Question deleted.");
+        }
+      }
+
+      function editQuestion(q) {
+        editingQuestionId = q.id;
+        openComposer();
+        selectedTopics = q.topics.map((t) => t.name);
+        renderTags();
+
+        document.getElementById("q-type").value = q.question_type;
+        document.getElementById("q-text").value = q.text;
+        document.getElementById("q-marks").value = q.marks;
+        document.getElementById("q-neg-marks").value = q.negative_marks;
+        document.getElementById("q-time").value = q.individual_time_limit;
+
+        renderTypeSpecificFields();
+
+        if (q.question_type === "MCQ") {
+          const container = document.getElementById("options-container");
+          container.innerHTML = "";
+          q.options.forEach((opt) => {
+            const div = document.createElement("div");
+            div.className = "option-row";
+
+            div.innerHTML = `
+                <input type="checkbox" class="is-correct" ${opt.is_correct ? "checked" : ""}> 
+                <input type="text" class="opt-text" value="${escapeHTML(opt.text)}">
+                <button onclick="this.parentElement.remove()" ${testConfig.is_published ? 'style="display:none"' : ""}>x</button>
+            `;
+            container.appendChild(div);
+          });
+        } else if (q.question_type === "NUMERICAL") {
+          document.getElementById("q-numerical-ans").value =
+            q.correct_numerical;
+        } else if (q.question_type === "CODE") {
+          const container = document.getElementById("testcase-container");
+          container.innerHTML = "";
+          q.test_cases.forEach((tc) => {
+            const div = document.createElement("div");
+
+            div.innerHTML = `
+                <textarea class="tc-input">${escapeHTML(tc.input_data)}</textarea>
+                <textarea class="tc-output">${escapeHTML(tc.expected_output)}</textarea>
+                <label>Hidden?</label><input type="checkbox" class="tc-hidden" ${tc.is_hidden ? "checked" : ""}>
+                <button onclick="this.parentElement.remove()" ${testConfig.is_published ? 'style="display:none"' : ""}>x</button>
+            `;
+            container.appendChild(div);
+          });
+        }
+
+        const previewContainer = document.getElementById("image-preview-urls");
+        previewContainer.innerHTML = "";
+
+        uploadedImageUrls = (q.images || []).map((img) => img.image_url);
+
+        uploadedImageUrls.forEach((url) => {
+          previewContainer.innerHTML += `
+            <div style="display:inline-block; margin-right:10px; text-align:center;">
+                <img src="${url}" style="height:50px; display:block; margin-bottom:2px; border: 1px solid #ccc;">
+                <span style="color:blue; font-size:10px;">ℹ️ Existing</span>
+            </div>`;
+        });
+      }
+
+      function resetComposer() {
+        editingQuestionId = null;
+        document.getElementById("q-text").value = "";
+        document.getElementById("options-container").innerHTML = "";
+        document.getElementById("testcase-container").innerHTML = "";
+        document.getElementById("image-preview-urls").innerHTML = "";
+        document.getElementById("q-image-input").value = "";
+        uploadedImageUrls = [];
+        selectedTopics = [];
+        renderTags();
+      }
+
+      let selectedTopics = [];
+
+      document
+        .getElementById("topic-input")
+        .addEventListener("input", async (e) => {
+          const q = e.target.value;
+          if (q.length < 1) {
+            document.getElementById("topic-dropdown").classList.add("hidden");
+            return;
+          }
+
+          const res = await fetch(
+            `/api/testing/topics/?q=${q}&group=${testConfig.group}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          const topics = await res.json();
+          renderTopicDropdown(topics);
+        });
+
+      function renderTopicDropdown(topics) {
+        const dd = document.getElementById("topic-dropdown");
+        dd.innerHTML = "";
+        if (topics.length === 0) {
+          dd.classList.add("hidden");
+          return;
+        }
+
+        topics.forEach((t) => {
+          const item = document.createElement("div");
+          item.style =
+            "padding: 10px; cursor: pointer; border-bottom: 1px solid #eee;";
+          item.innerText = t.name;
+          item.onmousedown = (e) => {
+            // Use mousedown to fire before input blur
+            e.preventDefault();
+            addTopicTag(t.name);
+          };
+          dd.appendChild(item);
+        });
+        dd.classList.remove("hidden");
+      }
+
+      function addTopicTag(name) {
+        name = name.trim();
+        if (!name || selectedTopics.includes(name)) return;
+
+        selectedTopics.push(name);
+        renderTags();
+
+        const input = document.getElementById("topic-input");
+        input.value = "";
+        document.getElementById("topic-dropdown").classList.add("hidden");
+      }
+
+      function renderTags() {
+        const container = document.getElementById("tag-container");
+        const input = document.getElementById("topic-input");
+
+        container
+          .querySelectorAll(".topic-tag-pill")
+          .forEach((t) => t.remove());
+
+        selectedTopics.forEach((name) => {
+          const span = document.createElement("span");
+          span.className = "topic-tag-pill";
+          span.style =
+            "background: #f0f4ff; border: 1px solid #007bff; color: #007bff; padding: 2px 10px; border-radius: 20px; font-size: 0.85em; display: flex; align-items: center; gap: 8px;";
+          span.innerHTML = `${name} <span style="cursor:pointer; font-weight:bold;" onclick="removeTopicTag('${name}')">×</span>`;
+          container.insertBefore(span, input);
+        });
+      }
+
+      function removeTopicTag(name) {
+        selectedTopics = selectedTopics.filter((t) => t !== name);
+        renderTags();
+      }
+
+      document
+        .getElementById("topic-input")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            addTopicTag(e.target.value);
+          }
+        });
+
+      function escapeHTML(str) {
+        if (!str) return "";
+        return str.toString().replace(/"/g, "&quot;");
+      }
+
+      init();
+    </script>
+  </body>
+</html>

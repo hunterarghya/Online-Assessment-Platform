@@ -82,6 +82,38 @@
       .hidden {
         display: none;
       }
+
+      /* 1. Prevent the modal from going off-screen */
+      .modal-content {
+        background: white;
+        margin: 2% auto; /* Reduced margin to give more space */
+        padding: 25px;
+        width: 60%;
+        border-radius: 10px;
+        max-height: 90vh; /* Stay within 90% of viewport height */
+        overflow-y: auto; /* Scroll the whole modal if content is huge */
+        position: relative;
+      }
+
+      /* 2. Style the test list to be a contained scrollable area */
+      #test-list {
+        max-height: 350px; /* Adjust this height as needed */
+        overflow-y: auto; /* Enable vertical scroll */
+        padding: 10px;
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-top: 10px;
+      }
+
+      /* Optional: Make the scrollbar look cleaner */
+      #test-list::-webkit-scrollbar {
+        width: 6px;
+      }
+      #test-list::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 10px;
+      }
     </style>
   </head>
   <body>
@@ -179,8 +211,82 @@
           <hr />
           <h4>Members</h4>
           <div id="list-approved"></div>
+          <hr />
+          <div id="test-section">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <h4>Tests</h4>
+              <button
+                id="btn-new-test"
+                class="action-btn btn-create hidden"
+                onclick="showTestSettings()"
+              >
+                + New Test
+              </button>
+            </div>
+            <div id="test-list"></div>
+          </div>
         </div>
         <button onclick="closeModals()">Close</button>
+      </div>
+    </div>
+
+    <div id="test-settings-modal" class="modal">
+      <div class="modal-content" style="width: 40%">
+        <h3>Test Settings</h3>
+        <label>Test Title:</label><br />
+        <input
+          id="test-title"
+          style="width: 95%; margin-bottom: 10px"
+          placeholder="Unit Test 1"
+        /><br />
+
+        <label>Timer Type:</label><br />
+        <select
+          id="test-timer-type"
+          onchange="toggleTimerFields()"
+          style="width: 95%; margin-bottom: 10px"
+        >
+          <option value="TOTAL">Total Test Time</option>
+          <option value="INDIVIDUAL">Per Question Timer</option></select
+        ><br />
+
+        <div id="total-duration-div">
+          <label>Total Duration (minutes):</label><br />
+          <input
+            type="number"
+            id="test-duration"
+            style="width: 95%; margin-bottom: 10px"
+          /><br />
+        </div>
+
+        <label>Shuffle Mode:</label>
+        <input type="checkbox" id="test-shuffle" /><br /><br />
+
+        <label>Schedule (Start Time):</label><br />
+        <small>Leave blank for "Free/Always Open"</small><br />
+        <input
+          type="datetime-local"
+          id="test-start"
+          style="width: 95%; margin-bottom: 10px"
+        /><br />
+
+        <label>Deadline:</label><br />
+        <input
+          type="datetime-local"
+          id="test-deadline"
+          style="width: 95%; margin-bottom: 10px"
+        /><br />
+
+        <button class="action-btn btn-approve" onclick="createTestAndProceed()">
+          Proceed to Composer
+        </button>
+        <button onclick="closeSettings()">Cancel</button>
       </div>
     </div>
 
@@ -263,7 +369,13 @@
         document.getElementById("det-desc").innerText = g.description;
         document.getElementById("det-code").innerText = g.invite_code;
 
-        // Show edit controls only for teachers
+        const newTestBtn = document.getElementById("btn-new-test");
+        if (user.role === "TEACHER") {
+          newTestBtn.classList.remove("hidden");
+        } else {
+          newTestBtn.classList.add("hidden");
+        }
+
         const editControls = document.getElementById("teacher-edit-controls");
         if (user.role === "TEACHER") {
           editControls.classList.remove("hidden");
@@ -298,6 +410,8 @@
           if (m.status === "PENDING") pend.innerHTML += row;
           else appr.innerHTML += row;
         });
+
+        loadTests(id);
 
         document.getElementById("detail-modal").style.display = "block";
       }
@@ -375,6 +489,134 @@
         document.getElementById("edit-fields").classList.add("hidden");
         document.getElementById("det-name").classList.remove("hidden");
         document.getElementById("det-desc").classList.remove("hidden");
+      }
+
+      async function loadTests(groupId) {
+        const res = await fetch(`/api/testing/tests/?group=${groupId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const tests = await res.json();
+        const list = document.getElementById("test-list");
+
+        list.innerHTML = tests.length === 0 ? "<p>No tests available.</p>" : "";
+
+        tests.forEach((t) => {
+          const now = new Date();
+          const start = t.start_time ? new Date(t.start_time) : null;
+          const deadline = t.deadline ? new Date(t.deadline) : null;
+
+          const isLocked = start && now < start;
+          const isExpired = deadline && now > deadline;
+
+          // Format display strings
+          const scheduleStr = start ? start.toLocaleString() : "Immediate";
+          const deadlineStr = deadline
+            ? deadline.toLocaleString()
+            : "No Deadline";
+
+          list.innerHTML += `
+    <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 5px solid ${t.is_published ? "#28a745" : "#ffc107"}; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between;">
+            <strong>${t.title}</strong>
+            <span style="font-weight: bold; color: #007bff;">${t.total_marks} Marks</span>
+        </div>
+        <div style="font-size: 0.85em; color: #555; margin-top: 5px;">
+            🕒 ${t.timer_type === "TOTAL" ? t.total_duration + " mins" : "Per Question Timer"}<br>
+            📅 Start: ${scheduleStr} | Deadline: ${deadlineStr}
+        </div>
+        
+        <div style="margin-top: 10px; display: flex; gap: 10px;">
+          ${
+            user.role === "TEACHER"
+              ? `
+                <button class="action-btn btn-approve" onclick="location.href='/test-composer/?id=${t.id}'">
+                    ${t.is_published ? "View Test" : "Edit Test"}
+                </button>
+                <button class="action-btn btn-reject" onclick="deleteEntireTest('${t.id}')">
+                    Delete Test
+                </button>`
+              : `
+                <button class="action-btn btn-approve" 
+                    ${isLocked || isExpired ? "disabled" : ""} 
+                    onclick="startTest('${t.id}')">
+                    ${isLocked ? "Locked" : isExpired ? "Expired" : "Start Test"}
+                </button>`
+          }
+        </div>
+    </div>`;
+        });
+      }
+
+      async function deleteEntireTest(id) {
+        if (
+          !confirm(
+            "Are you sure? This will delete the test and all its questions permanently.",
+          )
+        )
+          return;
+        const res = await fetch(`/api/testing/tests/${id}/`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) loadTests(currentGroupId);
+      }
+
+      function startTest(testId) {
+        // Future: Redirect to the test-taking interface
+        alert("Test taking interface coming soon! ID: " + testId);
+      }
+
+      function showTestSettings() {
+        document.getElementById("test-settings-modal").style.display = "block";
+      }
+
+      function toggleTimerFields() {
+        const type = document.getElementById("test-timer-type").value;
+        document.getElementById("total-duration-div").style.display =
+          type === "TOTAL" ? "block" : "none";
+      }
+
+      async function createTestAndProceed() {
+        const deadlineValue = document.getElementById("test-deadline").value;
+        const startTimeValue = document.getElementById("test-start").value;
+
+        const data = {
+          group: currentGroupId,
+          title: document.getElementById("test-title").value,
+          timer_type: document.getElementById("test-timer-type").value,
+          total_duration:
+            document.getElementById("test-duration").value || null,
+          shuffle_enabled: document.getElementById("test-shuffle").checked,
+          // Fix: Convert empty string to null for the backend
+          start_time: startTimeValue === "" ? null : startTimeValue,
+          deadline: deadlineValue === "" ? null : deadlineValue,
+        };
+
+        if (!data.title) {
+          alert("Please enter a test title.");
+          return;
+        }
+
+        const res = await fetch("/api/testing/tests/", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (res.ok) {
+          const test = await res.json();
+          location.href = `/test-composer/?id=${test.id}`;
+        } else {
+          const err = await res.json();
+          alert("Error: " + JSON.stringify(err));
+        }
+      }
+
+      function closeSettings() {
+        document.getElementById("test-settings-modal").style.display = "none";
       }
 
       function logout() {

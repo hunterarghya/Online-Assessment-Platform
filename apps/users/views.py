@@ -14,6 +14,26 @@ from .services import generate_otp, verify_otp, send_otp_email
 
 from django.http import HttpResponse
 import json
+from django.conf import settings
+from imagekitio import ImageKit
+
+
+# 2. Use this specific setup for Version 5.2.0
+imagekit = ImageKit(
+    private_key=settings.IMAGEKIT_PRIVATE_KEY,
+    public_key=settings.IMAGEKIT_PUBLIC_KEY,
+    url_endpoint=settings.IMAGEKIT_URL_ENDPOINT
+)
+
+
+# imagekit = ImageKit(
+#     settings.IMAGEKIT_PRIVATE_KEY,
+#     settings.IMAGEKIT_PUBLIC_KEY,
+#     settings.IMAGEKIT_URL_ENDPOINT
+# )
+
+# apps/users/views.py
+
 
 
 class RegisterView(APIView):
@@ -188,3 +208,24 @@ class UserProfileView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+    
+
+class ImageKitAuthView(APIView):
+    """
+    Provides security signatures for client-side uploads to ImageKit.
+    Only authenticated teachers should ideally be able to upload.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Optional: Check if the user is a teacher
+        if request.user.role != 'TEACHER':
+            return Response({"error": "Only teachers can upload images"}, status=403)
+            
+        try:
+            auth_params = imagekit.get_authentication_parameters()
+            # auth_params already contains {'token': ..., 'signature': ..., 'expire': ...}
+            return Response(auth_params)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+

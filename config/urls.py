@@ -26,4 +26,6 @@ urlpatterns = [
     path('dashboard/', TemplateView.as_view(template_name="dashboard.html"), name='dashboard'),
     path('api/auth/', include('apps.users.urls')),
     path('api/classroom/', include('apps.classroom.urls')),
+    path('api/testing/', include('apps.testing.urls')),
+    path('test-composer/', TemplateView.as_view(template_name="test_composer.html"), name='composer')
 ]
