@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import Test, Question, Topic, MCQOption, QuestionImage, CodeTestCase
+from django.utils import timezone
+
 
 class TopicSerializer(serializers.ModelSerializer):
     class Meta:
@@ -104,3 +106,17 @@ class TestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Test
         fields = '__all__'
+
+    def validate_start_time(self, value):
+        if value and timezone.is_naive(value):
+            # Get the IST timezone object
+            ist = pytz.timezone('Asia/Kolkata')
+            # Attach IST info to the time received from the slider
+            return timezone.make_aware(value, ist)
+        return value
+
+    def validate_deadline(self, value):
+        if value and timezone.is_naive(value):
+            ist = pytz.timezone('Asia/Kolkata')
+            return timezone.make_aware(value, ist)
+        return value

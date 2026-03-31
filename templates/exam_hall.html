@@ -1,0 +1,983 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Exam Hall | Live Test</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+        background: #f4f7f9;
+      }
+      header {
+        background: #1a73e8;
+        color: white;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      main {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+      #question-area {
+        flex: 7;
+        padding: 30px;
+        overflow-y: auto;
+        border-right: 1px solid #dee2e6;
+        background: white;
+      }
+      #sidebar {
+        flex: 2.5;
+        padding: 20px;
+        background: #f8f9fa;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #dee2e6;
+      }
+
+      .nav-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .q-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        border: 1px solid #ced4da;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 0.85em;
+        transition: 0.2s;
+      }
+
+      /* NTA States */
+      .not-visited {
+        background: #fff;
+        color: #333;
+      }
+      .not-answered {
+        background: #e74c3c;
+        color: white;
+        border-color: #c0392b;
+      } /* Red */
+      .answered {
+        background: #2ecc71;
+        color: white;
+        border-color: #27ae60;
+      } /* Green */
+      .review {
+        background: #9b59b6;
+        color: white;
+        border-color: #8e44ad;
+      } /* Purple */
+      .active-q {
+        border: 2px solid #1a73e8;
+        transform: scale(1.1);
+        box-shadow: 0 0 5px rgba(26, 115, 232, 0.4);
+      }
+
+      .controls {
+        margin-top: 40px;
+        display: flex;
+        gap: 12px;
+        border-top: 1px solid #eee;
+        padding-top: 20px;
+      }
+      .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9em;
+      }
+      .btn-primary {
+        background: #1a73e8;
+        color: white;
+      }
+      .btn-purple {
+        background: #9b59b6;
+        color: white;
+      }
+      .btn-outline {
+        background: #fff;
+        border: 1px solid #ccc;
+        color: #555;
+      }
+      .btn-finish {
+        background: #2c3e50;
+        color: white;
+        width: 100%;
+        margin-top: auto;
+        height: 50px;
+      }
+
+      input[type="number"],
+      textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        margin-top: 10px;
+        box-sizing: border-box;
+      }
+      textarea {
+        height: 250px;
+        font-family: "Courier New", monospace;
+        background: #fafafa;
+      }
+      .hidden {
+        display: none;
+      }
+      .option-item {
+        padding: 10px;
+        border: 1px solid #eee;
+        margin-bottom: 8px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .option-item:hover {
+        background: #f1f3f4;
+      }
+
+      /* Modal Styles */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+      }
+      .modal-content {
+        background-color: #fefefe;
+        margin: 10% auto;
+        padding: 20px;
+        border-radius: 8px;
+        width: 60%;
+        max-height: 70vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      }
+      .test-case-card {
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 4px;
+      }
+      .status-passed {
+        color: #2ecc71;
+        font-weight: bold;
+      }
+      .status-failed {
+        color: #e74c3c;
+        font-weight: bold;
+      }
+      pre {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+
+      /* Disable mouse interaction */
+      .locked-q {
+        cursor: not-allowed;
+        opacity: 0.5;
+        background-color: #f3f4f6; /* Light gray */
+        pointer-events: none; /* Hard-prevents clicks on the div */
+      }
+
+      /* Make the current question stand out even if locked */
+      .current-q-locked {
+        border: 2px solid #3b82f6; /* Blue border */
+        color: #1d4ed8;
+        font-weight: bold;
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div style="display: flex; align-items: center; gap: 15px">
+        <h3 id="test-title" style="margin: 0">Loading...</h3>
+      </div>
+      <div
+        id="timer"
+        style="
+          font-family: monospace;
+          font-size: 1.8em;
+          background: rgba(0, 0, 0, 0.2);
+          padding: 5px 15px;
+          border-radius: 5px;
+        "
+      >
+        00:00:00
+      </div>
+    </header>
+
+    <main>
+      <section id="question-area">
+        <div id="q-container">
+          <!-- <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 15px;
+            "
+          >
+            <h4
+              id="q-number"
+              style="
+                color: #666;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin: 0;
+              "
+            >
+              Question 1
+            </h4>
+            <div id="q-timer-slot"></div>
+          </div> -->
+          <h4
+            id="q-number"
+            style="
+              color: #666;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin-bottom: 20px;
+            "
+          >
+            Question 1
+          </h4>
+          <div
+            id="q-text"
+            style="
+              font-size: 1.25em;
+              margin-bottom: 25px;
+              line-height: 1.5;
+              color: #222;
+            "
+          ></div>
+          <div
+            id="q-images"
+            style="
+              display: flex;
+              gap: 10px;
+              margin-bottom: 15px;
+              flex-wrap: wrap;
+            "
+          ></div>
+
+          <div id="mcq-container"></div>
+
+          <div id="numerical-container" class="hidden">
+            <p>Enter your numerical answer below:</p>
+            <input
+              type="number"
+              id="num-answer"
+              step="any"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div id="code-container" class="hidden">
+            <p>Code Editor (Python):</p>
+            <textarea
+              id="code-editor"
+              spellcheck="false"
+              placeholder="# Write your code here..."
+            ></textarea>
+            <button
+              id="run-btn"
+              class="btn btn-outline"
+              style="margin-top: 10px; border-color: #1a73e8; color: #1a73e8"
+              onclick="runCode()"
+            >
+              ▶ Run Code
+            </button>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-primary" onclick="saveAnswer()">
+            Save & Next
+          </button>
+          <button class="btn btn-purple" onclick="markForReview()">
+            Mark for Review
+          </button>
+          <button class="btn btn-outline" onclick="clearResponse()">
+            Clear Response
+          </button>
+        </div>
+      </section>
+
+      <div id="runModal" class="modal">
+        <div class="modal-content">
+          <h2 id="modal-summary">Testing Results...</h2>
+          <div id="modal-details"></div>
+          <button
+            class="btn btn-primary"
+            style="margin-top: 20px"
+            onclick="closeModal()"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      <section id="sidebar">
+        <h4 style="margin-top: 0">Question Palette</h4>
+        <div class="nav-grid" id="nav-grid"></div>
+
+        <div
+          style="
+            margin-top: 25px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            font-size: 0.8em;
+            line-height: 2;
+          "
+        >
+          <span
+            style="
+              display: inline-block;
+              width: 12px;
+              height: 12px;
+              background: #2ecc71;
+              border-radius: 2px;
+            "
+          ></span>
+          Answered <br />
+          <span
+            style="
+              display: inline-block;
+              width: 12px;
+              height: 12px;
+              background: #e74c3c;
+              border-radius: 2px;
+            "
+          ></span>
+          Not Answered <br />
+          <span
+            style="
+              display: inline-block;
+              width: 12px;
+              height: 12px;
+              background: #9b59b6;
+              border-radius: 2px;
+            "
+          ></span>
+          Marked for Review <br />
+          <span
+            style="
+              display: inline-block;
+              width: 12px;
+              height: 12px;
+              background: #fff;
+              border: 1px solid #ccc;
+              border-radius: 2px;
+            "
+          ></span>
+          Not Visited
+        </div>
+
+        <button class="btn btn-finish" onclick="finishTest()">
+          SUBMIT TEST
+        </button>
+      </section>
+    </main>
+
+    <script>
+      const urlParams = new URLSearchParams(window.location.search);
+      const testId = urlParams.get("test_id");
+      const token = localStorage.getItem("token");
+
+      let questions = [];
+      let currentIdx = 0;
+      let attemptId = null;
+      let states = {};
+      let questionTimerInterval = null;
+      let globalTimerInterval = null;
+      let isIndividualTimer = false;
+
+      function startProctoring() {
+        document.documentElement.requestFullscreen().catch(() => {
+          console.warn("Fullscreen blocked.");
+        });
+
+        document.addEventListener("visibilitychange", async () => {
+          // Only trigger if the tab is hidden AND we have an active attempt
+          if (document.hidden && attemptId) {
+            try {
+              const res = await fetch(
+                `/api/evaluation/attempts/${attemptId}/log-violation/`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ type: "TAB_SWITCH" }),
+                },
+              );
+
+              const data = await res.json();
+
+              // Use the key 'action' or 'status' based on views.py logic
+              if (
+                data.action === "DISQUALIFY" ||
+                data.status === "DISQUALIFIED"
+              ) {
+                alert("Test Terminated: Security violations detected.");
+                await finishTest(true);
+              } else {
+                alert(
+                  `Security Warning: Tab switching detected. Warning ${data.warnings_current}/2`,
+                );
+              }
+            } catch (err) {
+              console.error("Proctoring sync failed:", err);
+            }
+          }
+        });
+
+        document.addEventListener("contextmenu", (e) => e.preventDefault());
+        document.addEventListener("copy", (e) => e.preventDefault());
+      }
+
+      // --- 2. INITIALIZATION ---
+      // async function init() {
+      //   if (!testId) return alert("Test ID missing.");
+      //   try {
+      //     const res = await fetch(`/api/evaluation/attempts/${testId}/start/`, {
+      //       method: "POST",
+      //       headers: {
+      //         Authorization: `Bearer ${token}`,
+      //         "Content-Type": "application/json",
+      //       },
+      //     });
+
+      //     const data = await res.json();
+      //     if (!res.ok) {
+      //       alert(data.error || "Access Denied");
+      //       window.location.href = "/dashboard/";
+      //       return;
+      //     }
+
+      //     questions = data.questions;
+      //     attemptId = data.attempt_id;
+      //     isIndividualTimer = data.timer_type === "INDIVIDUAL";
+      //     document.getElementById("test-title").innerText = data.title;
+
+      //     startProctoring();
+      //     setupGlobalTimer(data.end_time);
+      //     loadQuestion(0);
+      //   } catch (err) {
+      //     alert("Critical Error: " + err.message);
+      //   }
+      // }
+
+      async function init() {
+        if (!testId) return alert("Test ID missing.");
+        try {
+          const res = await fetch(`/api/evaluation/attempts/${testId}/start/`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            alert(data.error || "Access Denied");
+            window.location.href = "/dashboard/";
+            return;
+          }
+
+          // 1. Capture the data
+          attemptId = data.attempt_id;
+          const fetchedQuestions = data.questions;
+
+          // 2. SHUFFLE LOGIC with String-to-Number Seed Conversion
+          if (data.shuffle_questions === true) {
+            // Convert UUID/String attemptId to a numeric seed
+            const numericSeed = Array.from(String(attemptId)).reduce(
+              (acc, char) => acc + char.charCodeAt(0),
+              0,
+            );
+
+            console.log("Shuffling with seed:", numericSeed);
+            questions = shuffleArray([...fetchedQuestions], numericSeed);
+          } else {
+            questions = fetchedQuestions;
+          }
+
+          // 3. Set remaining globals
+          isIndividualTimer = data.timer_type === "INDIVIDUAL";
+          document.getElementById("test-title").innerText = data.title;
+
+          // 4. Start the environment
+          startProctoring();
+          setupGlobalTimer(data.end_time);
+          loadQuestion(0);
+        } catch (err) {
+          alert("Critical Error: " + err.message);
+        }
+      }
+
+      // --- 3. TIMER LOGIC ---
+      function setupGlobalTimer(endTimeStamp) {
+        const timerEl = document.getElementById("timer");
+        if (!endTimeStamp) return;
+
+        // Fix: Assign to the global variable
+        globalTimerInterval = setInterval(() => {
+          const now = Math.floor(Date.now() / 1000);
+          const remaining = Math.floor(endTimeStamp - now);
+
+          if (remaining <= 0) {
+            clearInterval(globalTimerInterval);
+            finishTest(true);
+          } else {
+            renderTime(timerEl, remaining);
+          }
+        }, 1000);
+      }
+
+      function renderTime(el, seconds) {
+        const h = Math.floor(seconds / 3600)
+          .toString()
+          .padStart(2, "0");
+        const m = Math.floor((seconds % 3600) / 60)
+          .toString()
+          .padStart(2, "0");
+        const s = (seconds % 60).toString().padStart(2, "0");
+        el.innerText = `${h}:${m}:${s}`;
+      }
+
+      function startQuestionTimer(limitSeconds) {
+        if (questionTimerInterval) clearInterval(questionTimerInterval);
+
+        let timeLeft = limitSeconds;
+        const mainTimerEl = document.getElementById("timer");
+
+        // Set initial style for urgency
+        mainTimerEl.style.color = "#ff4d4d";
+
+        const updateUI = (s) => {
+          // Format as 00:MM:SS to keep the header consistent
+          const m = Math.floor(s / 60)
+            .toString()
+            .padStart(2, "0");
+          const sec = (s % 60).toString().padStart(2, "0");
+          mainTimerEl.innerText = `00:${m}:${sec}`;
+        };
+
+        updateUI(timeLeft);
+
+        questionTimerInterval = setInterval(() => {
+          timeLeft--;
+          if (timeLeft >= 0) {
+            updateUI(timeLeft);
+          }
+
+          if (timeLeft <= 0) {
+            clearInterval(questionTimerInterval);
+            mainTimerEl.innerText = "TIME UP!";
+            saveAnswer();
+          }
+        }, 1000);
+      }
+
+      function loadQuestion(idx) {
+        if (idx < 0 || idx >= questions.length) return;
+
+        // 1. Save current state before leaving the current question
+        if (questions[currentIdx]) {
+          captureLocalState();
+        }
+
+        // 2. Kill any active question timer immediately to prevent "leaking" into the next question
+        if (questionTimerInterval) {
+          clearInterval(questionTimerInterval);
+          questionTimerInterval = null;
+        }
+
+        // 3. Update Index and reference
+        currentIdx = idx;
+        const q = questions[idx];
+
+        // 4. Update Header & Question Text
+        // Set text first, THEN append the timer badge in startQuestionTimer
+        document.getElementById("q-number").innerText = `Question ${idx + 1}`;
+        // document.getElementById("q-timer-slot").innerHTML = "";
+        document.getElementById("q-text").innerText = q.text;
+
+        // 5. Handle Images
+        const imgContainer = document.getElementById("q-images");
+        imgContainer.innerHTML = (q.images || [])
+          .map(
+            (url) =>
+              `<img src="${url}" style="max-height: 250px; border: 1px solid #ddd; border-radius: 5px; margin: 5px;">`,
+          )
+          .join("");
+
+        // 6. Reset & Toggle Input Containers
+        const containers = {
+          MCQ: document.getElementById("mcq-container"),
+          NUMERICAL: document.getElementById("numerical-container"),
+          CODE: document.getElementById("code-container"),
+        };
+
+        // Hide all first
+        Object.values(containers).forEach((c) => c.classList.add("hidden"));
+
+        // Show and populate the correct one
+        const savedValue = states[q.id]?.value;
+
+        if (q.question_type === "MCQ") {
+          containers.MCQ.classList.remove("hidden");
+
+          // We use Checkboxes for everything to allow 1 or more selections
+          containers.MCQ.innerHTML = (q.options || [])
+            .map((opt) => {
+              let isChecked = false;
+              try {
+                // Check if savedValue is a JSON array string
+                const parsed = JSON.parse(savedValue);
+                isChecked = Array.isArray(parsed)
+                  ? parsed.includes(opt.id.toString())
+                  : savedValue == opt.id;
+              } catch (e) {
+                isChecked = savedValue == opt.id;
+              }
+
+              return `
+                        <div class="option-item">
+                            <input type="checkbox"
+                                   name="q-option"
+                                   class="msq-input"
+                                   value="${opt.id}"
+                                   ${isChecked ? "checked" : ""}
+                                   id="opt${opt.id}">
+                            <label for="opt${opt.id}" style="margin-left:10px; cursor:pointer; flex:1;">${opt.text}</label>
+                        </div>
+                    `;
+            })
+            .join("");
+        } else if (q.question_type === "NUMERICAL") {
+          containers.NUMERICAL.classList.remove("hidden");
+          document.getElementById("num-answer").value = savedValue || "";
+        } else if (q.question_type === "CODE") {
+          containers.CODE.classList.remove("hidden");
+          document.getElementById("code-editor").value = savedValue || "";
+        }
+
+        // 7. Start Timer ONLY after the DOM updates above are finished
+        if (isIndividualTimer && q.individual_time_limit) {
+          const limit = parseInt(q.individual_time_limit);
+          if (!isNaN(limit) && limit > 0) {
+            // Small timeout ensures the 'q-number' innerText update is complete
+            setTimeout(() => startQuestionTimer(limit), 10);
+          }
+        }
+
+        // 8. Refresh the sidebar navigation
+        renderNavGrid();
+      }
+
+      function captureLocalState() {
+        const q = questions[currentIdx];
+        let val = null;
+        // if (q.question_type === "MCQ") {
+        //   const selected = document.querySelector('input[name="mcq"]:checked');
+        //   val = selected ? selected.value : null;
+        // }
+        if (q.question_type === "MCQ") {
+          // Collect all checked boxes into an array
+          const inputs = document.querySelectorAll(
+            'input[name="q-option"]:checked',
+          );
+          const selectedValues = Array.from(inputs).map((i) => i.value);
+
+          // Stringify so the backend receives a clear list format
+          val = JSON.stringify(selectedValues);
+        } else if (q.question_type === "NUMERICAL") {
+          val = document.getElementById("num-answer").value;
+        } else if (q.question_type === "CODE") {
+          val = document.getElementById("code-editor").value;
+        }
+
+        if (val !== null && val.toString().trim() !== "") {
+          states[q.id] = { status: "answered", value: val };
+        } else if (
+          !states[q.id] ||
+          (states[q.id].status !== "review" &&
+            states[q.id].status !== "answered")
+        ) {
+          states[q.id] = { status: "not-answered", value: null };
+        }
+      }
+
+      async function saveAnswer() {
+        captureLocalState();
+        const q = questions[currentIdx];
+        const val = states[q.id]?.value;
+
+        try {
+          // MATCHING BACKEND url_path='submit-answer'
+          await fetch(`/api/evaluation/attempts/${attemptId}/submit-answer/`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ question_id: q.id, submitted_answer: val }),
+          });
+        } catch (err) {
+          console.error("Save failed:", err);
+        }
+
+        if (currentIdx < questions.length - 1) {
+          loadQuestion(currentIdx + 1);
+        } else {
+          renderNavGrid();
+        }
+      }
+
+      async function finishTest(auto = false) {
+        await saveAnswer();
+        if (!auto && !confirm("Are you sure you want to submit?")) return;
+
+        if (questionTimerInterval) clearInterval(questionTimerInterval);
+        if (globalTimerInterval) clearInterval(globalTimerInterval);
+
+        try {
+          // MATCHING BACKEND url_path='finish-test'
+          const res = await fetch(
+            `/api/evaluation/attempts/${attemptId}/finish-test/`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+
+          const data = await res.json();
+          if (res.ok) {
+            alert(`Test submitted successfully! Score: ${data.total_score}`);
+            window.location.href = "/dashboard/";
+          } else {
+            alert(data.error || "Submission failed");
+          }
+        } catch (err) {
+          console.error("Finish error:", err);
+          alert("Connection error during submission.");
+        }
+      }
+
+      function markForReview() {
+        const q = questions[currentIdx];
+        captureLocalState();
+        states[q.id].status = "review";
+        if (currentIdx < questions.length - 1) loadQuestion(currentIdx + 1);
+        else renderNavGrid();
+      }
+
+      function clearResponse() {
+        const q = questions[currentIdx];
+        const inputs = document.querySelectorAll('input[name="mcq"]');
+        inputs.forEach((i) => (i.checked = false));
+        document.getElementById("num-answer").value = "";
+        document.getElementById("code-editor").value = "";
+        states[q.id] = { status: "not-answered", value: null };
+        renderNavGrid();
+      }
+
+      // function renderNavGrid() {
+      //   const grid = document.getElementById("nav-grid");
+      //   grid.innerHTML = "";
+      //   questions.forEach((q, idx) => {
+      //     const status = states[q.id]?.status || "not-visited";
+      //     const active = currentIdx === idx ? "active-q" : "";
+      //     grid.innerHTML += `<div class="q-circle ${status} ${active}" onclick="loadQuestion(${idx})">${idx + 1}</div>`;
+      //   });
+      // }
+
+      function renderNavGrid() {
+        const grid = document.getElementById("nav-grid");
+        let gridHTML = "";
+
+        questions.forEach((q, idx) => {
+          const state = states[q.id] || {};
+          const status = state.status || "not-visited";
+          const isCurrent = currentIdx === idx;
+          const activeClass = isCurrent ? "active-q" : "";
+
+          // --- OPTION 1 LOGIC ---
+          // 1. If individual timer, remove onclick and add 'locked' class
+          // 2. If total timer, keep the standard onclick behavior
+          let clickHandler = `onclick="loadQuestion(${idx})"`;
+          let lockedClass = "";
+
+          if (isIndividualTimer) {
+            clickHandler = ""; // Remove click ability
+            lockedClass = "locked-q"; // Add a CSS class for grayed-out look
+
+            // We still want to highlight the current question so they see progress
+            if (isCurrent) {
+              lockedClass = "current-q-locked";
+            }
+          }
+
+          gridHTML += `
+            <div class="q-circle ${status} ${activeClass} ${lockedClass}" ${clickHandler}>
+                ${idx + 1}
+            </div>`;
+        });
+
+        grid.innerHTML = gridHTML;
+      }
+
+      async function runCode() {
+        const q = questions[currentIdx];
+        const code = document.getElementById("code-editor").value;
+        const runBtn = document.getElementById("run-btn");
+
+        if (!code.trim()) return alert("Please write some code first.");
+
+        // UI Feedback
+        runBtn.innerText = "⌛ Running...";
+        runBtn.disabled = true;
+
+        try {
+          const res = await fetch(
+            `/api/evaluation/attempts/${attemptId}/run-code/`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                question_id: q.id,
+                submitted_answer: code,
+              }),
+            },
+          );
+
+          const data = await res.json();
+
+          if (res.ok) {
+            showRunResults(data);
+          } else {
+            alert(data.error || "Execution failed.");
+          }
+        } catch (err) {
+          alert("Server error. Please try again.");
+        } finally {
+          runBtn.innerText = "▶ Run Code";
+          runBtn.disabled = false;
+        }
+      }
+
+      function showRunResults(data) {
+        const modal = document.getElementById("runModal");
+        const summary = document.getElementById("modal-summary");
+        const details = document.getElementById("modal-details");
+
+        summary.innerText = `Result: ${data.passed_count} / ${data.total_count} Passed`;
+
+        details.innerHTML = data.public_details
+          .map(
+            (tc, index) => `
+        <div class="test-case-card">
+            <strong>Sample Test Case ${index + 1}: </strong> 
+            <span class="${tc.status === "Passed" ? "status-passed" : "status-failed"}">${tc.status}</span>
+            <div style="margin-top: 5px;">
+                <small>Input:</small>
+                <pre>${tc.input}</pre>
+                <small>Expected Output:</small>
+                <pre>${tc.expected}</pre>
+                ${tc.error ? `<small style="color:red">Error:</small><pre style="color:red">${tc.error}</pre>` : ""}
+            </div>
+        </div>
+    `,
+          )
+          .join("");
+
+        // If there were hidden cases, add a small note
+        const hiddenCount = data.total_count - data.public_details.length;
+        if (hiddenCount > 0) {
+          details.innerHTML += `<p style="margin-top:15px; color:#666; font-style:italic;">
+            + ${hiddenCount} Hidden Test Cases were evaluated.
+        </p>`;
+        }
+
+        modal.style.display = "block";
+      }
+
+      function closeModal() {
+        document.getElementById("runModal").style.display = "none";
+      }
+
+      // Close modal if user clicks outside of it
+      window.onclick = function (event) {
+        const modal = document.getElementById("runModal");
+        if (event.target == modal) closeModal();
+      };
+
+      function shuffleArray(array, seed) {
+        // If seed is a UUID or string, convert it to a numeric hash first
+        let numericSeed =
+          typeof seed === "number"
+            ? seed
+            : Array.from(String(seed)).reduce(
+                (acc, char) => acc + char.charCodeAt(0),
+                0,
+              );
+
+        let m = array.length,
+          t,
+          i;
+
+        // Standard LCG parameters
+        const random = () => {
+          numericSeed = (numericSeed * 1664525 + 1013904223) % 4294967296;
+          return numericSeed / 4294967296;
+        };
+
+        while (m) {
+          i = Math.floor(random() * m--);
+          t = array[m];
+          array[m] = array[i];
+          array[i] = t;
+        }
+        return array;
+      }
+      init();
+    </script>
+  </body>
+</html>

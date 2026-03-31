@@ -290,6 +290,55 @@
       </div>
     </div>
 
+    <!-- instruction modal -->
+    <div id="instructions-modal" class="modal">
+      <div class="modal-content" style="max-width: 500px">
+        <h3 id="instr-title">Test Instructions</h3>
+        <div
+          id="instr-body"
+          style="
+            background: #fdf6e3;
+            padding: 15px;
+            border-left: 5px solid #b58900;
+            margin-bottom: 20px;
+          "
+        >
+          <ul style="line-height: 1.6">
+            <li>Do not refresh the page once the test starts.</li>
+            <li>
+              Switching tabs more than 3 times will auto-submit your test.
+            </li>
+            <li>Ensure a stable internet connection for code execution.</li>
+            <li>
+              Click <strong>Purple</strong> to mark a question for later review.
+            </li>
+          </ul>
+        </div>
+        <div
+          id="countdown-container"
+          style="text-align: center; margin-bottom: 20px"
+        >
+          <p id="wait-msg">Test starts in:</p>
+          <h2 id="timer-display" style="color: #dc3545">00:00:00</h2>
+        </div>
+        <button
+          id="btn-enter-hall"
+          class="action-btn btn-approve"
+          style="width: 100%; display: none"
+          onclick="goToExamHall()"
+        >
+          Enter Exam Hall
+        </button>
+        <button
+          onclick="closeInstructions()"
+          style="width: 100%; margin-top: 10px"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+    <!-- instruction modal -->
+
     <script>
       const user = JSON.parse(localStorage.getItem("user"));
       const token = localStorage.getItem("token");
@@ -451,7 +500,7 @@
         const description = document.getElementById("edit-desc").value;
 
         const res = await fetch(`/api/classroom/groups/${currentGroupId}/`, {
-          method: "PATCH", // Use PATCH for partial updates
+          method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -505,8 +554,15 @@
           const start = t.start_time ? new Date(t.start_time) : null;
           const deadline = t.deadline ? new Date(t.deadline) : null;
 
-          const isLocked = start && now < start;
+          // Logic for the 10-minute entry window
+          const tenMinsBefore = start
+            ? new Date(start.getTime() - 10 * 60000)
+            : null;
+          const isInsideEntryWindow =
+            start && now >= tenMinsBefore && now < start;
+          const isLocked = start && now < tenMinsBefore;
           const isExpired = deadline && now > deadline;
+          const isLive = start ? now >= start && !isExpired : !isExpired;
 
           // Format display strings
           const scheduleStr = start ? start.toLocaleString() : "Immediate";
@@ -514,36 +570,53 @@
             ? deadline.toLocaleString()
             : "No Deadline";
 
-          list.innerHTML += `
-    <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 5px solid ${t.is_published ? "#28a745" : "#ffc107"}; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <div style="display: flex; justify-content: space-between;">
-            <strong>${t.title}</strong>
-            <span style="font-weight: bold; color: #007bff;">${t.total_marks} Marks</span>
-        </div>
-        <div style="font-size: 0.85em; color: #555; margin-top: 5px;">
-            🕒 ${t.timer_type === "TOTAL" ? t.total_duration + " mins" : "Per Question Timer"}<br>
-            📅 Start: ${scheduleStr} | Deadline: ${deadlineStr}
-        </div>
-        
-        <div style="margin-top: 10px; display: flex; gap: 10px;">
-          ${
-            user.role === "TEACHER"
-              ? `
-                <button class="action-btn btn-approve" onclick="location.href='/test-composer/?id=${t.id}'">
-                    ${t.is_published ? "View Test" : "Edit Test"}
-                </button>
-                <button class="action-btn btn-reject" onclick="deleteEntireTest('${t.id}')">
-                    Delete Test
-                </button>`
-              : `
-                <button class="action-btn btn-approve" 
-                    ${isLocked || isExpired ? "disabled" : ""} 
-                    onclick="startTest('${t.id}')">
-                    ${isLocked ? "Locked" : isExpired ? "Expired" : "Start Test"}
-                </button>`
+          // Determine Button State for Students
+          let btnText = "Start Test";
+          let btnDisabled = "";
+
+          if (start) {
+            if (isLocked) {
+              btnText = "Locked";
+              btnDisabled = "disabled";
+            } else if (isInsideEntryWindow) {
+              btnText = "Enter Waiting Room";
+            } else if (isExpired) {
+              btnText = "Expired";
+              btnDisabled = "disabled";
+            }
+          } else if (isExpired) {
+            btnText = "Expired";
+            btnDisabled = "disabled";
           }
-        </div>
-    </div>`;
+
+          list.innerHTML += `
+      <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 5px solid ${t.is_published ? "#28a745" : "#ffc107"}; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+          <div style="display: flex; justify-content: space-between;">
+              <strong>${t.title}</strong>
+              <span style="font-weight: bold; color: #007bff;">${t.total_marks} Marks</span>
+          </div>
+          <div style="font-size: 0.85em; color: #555; margin-top: 5px;">
+              🕒 ${t.timer_type === "TOTAL" ? t.total_duration + " mins" : "Per Question Timer"}<br>
+              📅 Start: ${scheduleStr} | Deadline: ${deadlineStr}
+          </div>
+          
+          <div style="margin-top: 10px; display: flex; gap: 10px;">
+            ${
+              user.role === "TEACHER"
+                ? `
+                  <button class="action-btn btn-approve" onclick="location.href='/test-composer/?id=${t.id}'">
+                      ${t.is_published ? "View Test" : "Edit Test"}
+                  </button>
+                  <button class="action-btn btn-reject" onclick="deleteEntireTest('${t.id}')">
+                      Delete Test
+                  </button>`
+                : `
+                  <button class="action-btn btn-approve" ${btnDisabled} onclick="startTest('${t.id}')">
+                      ${btnText}
+                  </button>`
+            }
+          </div>
+      </div>`;
         });
       }
 
@@ -561,9 +634,73 @@
         if (res.ok) loadTests(currentGroupId);
       }
 
-      function startTest(testId) {
-        // Future: Redirect to the test-taking interface
-        alert("Test taking interface coming soon! ID: " + testId);
+      let countdownInterval;
+      let activeTestId = null;
+
+      async function startTest(testId) {
+        activeTestId = testId;
+
+        const res = await fetch(`/api/testing/tests/${testId}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const test = await res.json();
+
+        document.getElementById("instr-title").innerText =
+          `Instructions: ${test.title}`;
+        document.getElementById("instructions-modal").style.display = "block";
+
+        const startTime = test.start_time ? new Date(test.start_time) : null;
+
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        // If it's an "Immediate" test (no start_time), show the button instantly
+        if (!startTime) {
+          document.getElementById("wait-msg").innerText = "Test is Live!";
+          document.getElementById("timer-display").innerText = "00:00:00";
+          document.getElementById("btn-enter-hall").style.display = "block";
+          return;
+        }
+
+        countdownInterval = setInterval(() => {
+          const now = new Date();
+          const diff = startTime - now;
+
+          if (diff <= 0) {
+            // TEST STARTS AUTOMATICALLY
+            clearInterval(countdownInterval);
+            document.getElementById("timer-display").innerText = "00:00:00";
+            document.getElementById("wait-msg").innerText =
+              "Starting test now...";
+
+            // Call the redirect function immediately for synchronization
+            goToExamHall();
+          } else {
+            const h = Math.floor(diff / 3600000)
+              .toString()
+              .padStart(2, "0");
+            const m = Math.floor((diff % 3600000) / 60000)
+              .toString()
+              .padStart(2, "0");
+            const s = Math.floor((diff % 60000) / 1000)
+              .toString()
+              .padStart(2, "0");
+
+            document.getElementById("timer-display").innerText =
+              `${h}:${m}:${s}`;
+            document.getElementById("wait-msg").innerText = "Test starts in:";
+            document.getElementById("btn-enter-hall").style.display = "none";
+          }
+        }, 1000);
+      }
+
+      function goToExamHall() {
+        // Redirect to the hall
+        location.href = `/exam-hall/?test_id=${activeTestId}`;
+      }
+
+      function closeInstructions() {
+        clearInterval(countdownInterval);
+        document.getElementById("instructions-modal").style.display = "none";
       }
 
       function showTestSettings() {

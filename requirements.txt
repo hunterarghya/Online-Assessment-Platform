@@ -11,3 +11,4 @@ python-dotenv
 gunicorn
 itsdangerous
 imagekitio==4.2.0
+django-redis
