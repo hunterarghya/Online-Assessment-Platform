@@ -119,6 +119,7 @@
   <body>
     <div id="sidebar">
       <h3>Profile</h3>
+      <h2 id="user-name" style="margin-bottom: 5px"></h2>
       <p id="user-email"></p>
       <p id="user-role" style="color: #007bff"></p>
       <hr />
@@ -206,6 +207,23 @@
         <p id="det-desc"></p>
 
         <div id="management-section">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              background: #f0f7ff;
+              padding: 10px;
+              border-radius: 8px;
+              margin-bottom: 15px;
+              border: 1px solid #cce5ff;
+            "
+          >
+            <h4 style="margin: 0">Gradebook & Performance</h4>
+            <button class="action-btn btn-approve" onclick="goToResults()">
+              📊 View Results
+            </button>
+          </div>
           <h4>Pending Requests</h4>
           <div id="list-pending"></div>
           <hr />
@@ -344,8 +362,16 @@
       const token = localStorage.getItem("token");
       if (!user) location.href = "/";
 
+      const nameElement = document.getElementById("user-name");
+      if (user.first_name || user.last_name) {
+        nameElement.innerText = `${user.first_name} ${user.last_name}`;
+      } else {
+        // Fallback if name is missing (old users or specific edge cases)
+        nameElement.innerText = user.email.split("@")[0];
+      }
       document.getElementById("user-email").innerText = user.email;
       document.getElementById("user-role").innerText = user.role;
+
       if (user.role === "TEACHER")
         document.getElementById("teacher-actions").classList.remove("hidden");
       else
@@ -698,6 +724,14 @@
         location.href = `/exam-hall/?test_id=${activeTestId}`;
       }
 
+      function goToResults() {
+        // currentGroupId is already defined globally in your dashboard.html
+        if (currentGroupId) {
+          location.href = `/results/?group=${currentGroupId}`;
+        } else {
+          alert("Error: Group ID not found.");
+        }
+      }
       function closeInstructions() {
         clearInterval(countdownInterval);
         document.getElementById("instructions-modal").style.display = "none";

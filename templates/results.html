@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Test Results & Analytics</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 20px;
+        background: #f4f4f4;
+      }
+      .container {
+        max-width: 900px;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 20px;
+      }
+      .tab-btn {
+        padding: 10px 20px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      .tab-btn.active {
+        border-bottom: 3px solid #007bff;
+        color: #007bff;
+        font-weight: bold;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Navigation & Lists */
+      .header-tools {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .scrollable-list {
+        max-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        padding: 10px;
+        border-radius: 4px;
+      }
+
+      .card {
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .card:hover {
+        background: #f9f9f9;
+      }
+
+      /* Paper View Styles */
+      .paper-card {
+        border-left: 5px solid #ccc;
+        padding: 15px;
+        margin-bottom: 20px;
+        background: #fff;
+        border: 1px solid #eee;
+      }
+      .correct {
+        border-left: 5px solid #28a745;
+        background: #f0fff4;
+      }
+      .wrong {
+        border-left: 5px solid #dc3545;
+        background: #fff5f5;
+      }
+
+      .option {
+        padding: 5px;
+        margin: 3px 0;
+        border-radius: 3px;
+      }
+      .opt-correct {
+        background: #c3e6cb;
+        font-weight: bold;
+      } /* Green background */
+      .opt-wrong {
+        background: #f5c6cb;
+        text-decoration: line-through;
+      } /* Red background */
+
+      pre {
+        background: #272822;
+        color: #f8f8f2;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+      }
+      .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        background: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('results')">
+          Results
+        </button>
+        <button class="tab-btn" onclick="showTab('analytics')">
+          Analytics
+        </button>
+      </div>
+
+      <div id="tab-results" class="tab-content active">
+        <div class="header-tools">
+          <button id="btn-back" class="hidden" onclick="handleBack()">
+            ← Back
+          </button>
+          <h2 id="title-text">Loading Tests...</h2>
+        </div>
+
+        <div id="view-list" class="scrollable-list"></div>
+
+        <div id="view-paper" class="hidden"></div>
+      </div>
+
+      <div id="tab-analytics" class="tab-content">
+        <h3>Analytics Dashboard</h3>
+        <p>Data visualization for group performance will appear here.</p>
+      </div>
+    </div>
+
+    <script>
+      // 1. Align keys with dashboard.html
+      const groupId = new URLSearchParams(window.location.search).get("group");
+      const token = localStorage.getItem("token");
+      const userData = JSON.parse(localStorage.getItem("user"));
+      const userRole = userData ? userData.role : null; // Extracts "TEACHER" or "STUDENT"
+
+      let historyStack = []; // To manage back button navigation
+
+      // Initial Load
+      window.onload = () => {
+        if (!token || !userData) {
+          alert("Session expired. Please login again.");
+          location.href = "/";
+          return;
+        }
+        if (!groupId) return alert("No Group ID found in URL");
+        fetchTests();
+      };
+
+      function showTab(tabName) {
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((t) => t.classList.remove("active"));
+        document
+          .querySelectorAll(".tab-btn")
+          .forEach((b) => b.classList.remove("active"));
+        document.getElementById(`tab-${tabName}`).classList.add("active");
+        // Update active state on the button
+        event.currentTarget.classList.add("active");
+      }
+
+      async function apiFetch(url) {
+        const response = await fetch(url, {
+          headers: {
+            // Corrected header to use the 'token' variable
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          console.error("API Error:", err);
+          return null;
+        }
+        return await response.json();
+      }
+
+      // --- VIEW 1: LIST OF TESTS ---
+      async function fetchTests() {
+        const tests = await apiFetch(`/api/analytics/group/${groupId}/`);
+        if (!tests) return;
+
+        document.getElementById("title-text").innerText = "Group Tests";
+        document.getElementById("btn-back").classList.add("hidden");
+        document.getElementById("view-list").classList.remove("hidden");
+        document.getElementById("view-paper").classList.add("hidden");
+
+        let html = tests
+          .map(
+            (t) => `
+            <div class="card" onclick="onTestClick('${t.test_id}', ${t.is_released})">
+                <div>
+                    <strong>${t.title}</strong><br>
+                    <small>${t.release_message}</small>
+                </div>
+                <div>
+                    ${t.my_score !== null ? `<span class="badge">Score: ${t.my_score}</span>` : ""}
+                    <span class="badge">${t.status}</span>
+                </div>
+            </div>
+        `,
+          )
+          .join("");
+
+        document.getElementById("view-list").innerHTML =
+          html || "<p>No tests found.</p>";
+        historyStack = [];
+      }
+
+      function onTestClick(testId, isReleased) {
+        if (userRole === "TEACHER") {
+          fetchStudentSummary(testId);
+        } else {
+          if (!isReleased) return alert("Results are not yet published.");
+          fetchPaper(testId);
+        }
+      }
+
+      // --- VIEW 2: STUDENT SUMMARY (Teacher Only) ---
+      async function fetchStudentSummary(testId) {
+        const data = await apiFetch(`/api/analytics/test/${testId}/summary/`);
+        if (!data) return;
+
+        document.getElementById("title-text").innerText = data.test_title;
+        document.getElementById("btn-back").classList.remove("hidden");
+
+        let html = data.students
+          .map(
+            (s) => `
+            <div class="card" onclick="fetchPaper('${testId}', '${s.student_id}')">
+                <span>${s.name} <small>(${s.email})</small></span>
+                <strong>${s.score} / ${data.total_marks}</strong>
+            </div>
+        `,
+          )
+          .join("");
+
+        document.getElementById("view-list").innerHTML = html;
+        historyStack.push({ type: "TEST_LIST" });
+      }
+
+      // --- VIEW 3: THE PAPER ---
+      async function fetchPaper(testId, studentId = null) {
+        let url = `/api/analytics/test/${testId}/paper/`;
+        if (studentId) url += `?student_id=${studentId}`;
+
+        const data = await apiFetch(url);
+        if (!data) return;
+
+        document.getElementById("title-text").innerText =
+          `Review: ${data.student_name}`;
+        document.getElementById("btn-back").classList.remove("hidden");
+        document.getElementById("view-list").classList.add("hidden");
+        document.getElementById("view-paper").classList.remove("hidden");
+
+        let paperHtml = `<div style="margin-bottom:20px;"><strong>Final Score: ${data.total_score}</strong></div>`;
+
+        data.questions.forEach((q, index) => {
+          let statusClass = q.is_correct ? "correct" : "wrong";
+          let content = `<h4>Q${index + 1}. ${q.question_text}</h4>`;
+
+          if (q.type === "MCQ") {
+            content += q.options
+              .map((opt) => {
+                let optClass = "";
+                if (opt.is_correct) optClass = "opt-correct";
+                if (opt.id == q.submitted && !opt.is_correct)
+                  optClass = "opt-wrong";
+                return `<div class="option ${optClass}">${opt.text} ${opt.is_correct ? "✓" : ""}</div>`;
+              })
+              .join("");
+          } else if (q.type === "NUMERICAL") {
+            content += `<p>Answer: <b>${q.submitted}</b> ${q.is_correct ? "✓" : "✗"}</p>`;
+            if (!q.is_correct)
+              content += `<p><small>Correct Answer: ${q.correct_answer}</small></p>`;
+          } else if (q.type === "CODE") {
+            content += `<pre><code>${q.submitted || "// No code submitted"}</code></pre>`;
+            content += `<p>Status: ${q.all_test_cases_passed ? '<b style="color:green">ALL PASS ✓</b>' : '<b style="color:red">FAILED ✗</b>'}</p>`;
+            if (q.error_log)
+              content += `<div style="color:red; font-size:12px;">${q.error_log}</div>`;
+          }
+
+          content += `<div style="text-align:right"><small>Marks: ${q.marks_earned} / ${q.max_marks}</small></div>`;
+          paperHtml += `<div class="paper-card ${statusClass}">${content}</div>`;
+        });
+
+        document.getElementById("view-paper").innerHTML = paperHtml;
+
+        // Push to history so we can go back to either the Test List or Student List
+        historyStack.push({
+          type: userRole === "TEACHER" ? "STUDENT_LIST" : "TEST_LIST",
+          id: testId,
+        });
+      }
+
+      function handleBack() {
+        const lastState = historyStack.pop();
+        if (!lastState) return;
+
+        if (lastState.type === "TEST_LIST") {
+          fetchTests();
+        } else if (lastState.type === "STUDENT_LIST") {
+          fetchStudentSummary(lastState.id);
+        }
+      }
+    </script>
+  </body>
+</html>

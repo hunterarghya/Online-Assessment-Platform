@@ -52,7 +52,8 @@ class QuestionResponse(models.Model):
     # Specific for Coding Questions
     judge0_token = models.CharField(max_length=100, blank=True, null=True)
     compilation_status = models.TextField(blank=True, null=True) # To store errors
-    
+
+      
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:

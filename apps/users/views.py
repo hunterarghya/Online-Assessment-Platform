@@ -172,6 +172,8 @@ class GoogleCallbackView(APIView):
         token = oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
         email = user_info['email']
+        first_name = user_info.get('given_name', '')
+        last_name = user_info.get('family_name', '')
 
         # Look for a user with this specific email AND role
         user = User.objects.filter(email=email, role=role).first()
@@ -182,6 +184,8 @@ class GoogleCallbackView(APIView):
                 email=email,
                 username=f"{email.split('@')[0]}_{role.lower()}",
                 role=role,
+                first_name=first_name,
+                last_name=last_name,
                 is_verified=True
             )
 

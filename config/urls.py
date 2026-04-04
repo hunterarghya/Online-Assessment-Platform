@@ -25,9 +25,11 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name="index.html"), name='home'),
     path('dashboard/', TemplateView.as_view(template_name="dashboard.html"), name='dashboard'),
     path('exam-hall/', TemplateView.as_view(template_name="exam_hall.html"), name='exam_hall'),
+    path('results/', TemplateView.as_view(template_name="results.html"), name='results'),
     path('api/auth/', include('apps.users.urls')),
     path('api/classroom/', include('apps.classroom.urls')),
     path('api/testing/', include('apps.testing.urls')),
     path('test-composer/', TemplateView.as_view(template_name="test_composer.html"), name='composer'),
     path('api/evaluation/', include('apps.evaluation.urls')),
+    path('api/analytics/', include('apps.analytics.urls')),
 ]

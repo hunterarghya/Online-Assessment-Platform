@@ -38,6 +38,8 @@
         <section id="register-section" class="hidden">
           <h3>Create Account</h3>
           <input type="email" id="reg-email" placeholder="Email" /><br />
+          <input type="text" id="reg-fname" placeholder="First Name" /><br />
+          <input type="text" id="reg-lname" placeholder="Last Name" /><br />
           <input
             type="password"
             id="reg-password"
@@ -132,12 +134,20 @@
       // Logic: Register (Passes currentPortal as role)
       async function handleRegister() {
         const email = document.getElementById("reg-email").value;
+        const first_name = document.getElementById("reg-fname").value;
+        const last_name = document.getElementById("reg-lname").value;
         const password = document.getElementById("reg-password").value;
 
         const res = await fetch(`${API_BASE}/register/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, role: currentPortal }),
+          body: JSON.stringify({
+            email,
+            first_name,
+            last_name,
+            password,
+            role: currentPortal,
+          }),
         });
 
         if (res.ok) {

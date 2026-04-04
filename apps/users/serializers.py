@@ -3,10 +3,12 @@ from .models import User
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
 
     class Meta:
         model = User
-        fields = ['email', 'password', 'role']
+        fields = ['email', 'password', 'role', 'first_name', 'last_name']
 
     def create(self, validated_data):
         email = validated_data['email']
@@ -17,6 +19,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             username=initial_username,
             password=validated_data['password'],
             role=validated_data['role'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
             is_active=True,
             is_verified=False
         )
@@ -26,4 +30,4 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'email', 'role', 'is_verified']
+        fields = ['id', 'email', 'role', 'is_verified', 'first_name', 'last_name']

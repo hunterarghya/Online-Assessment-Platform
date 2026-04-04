@@ -246,75 +246,71 @@ class TestAttemptViewSet(viewsets.ModelViewSet):
         marks_earned = 0.0
         error_message = None
 
-        # Handle Empty Answer (Skipped)
-        if submitted_answer is None or str(submitted_answer).strip() == "":
-            is_correct = False
+        is_empty = submitted_answer is None or str(submitted_answer).strip() in ["", "[]", "null", "None"]
+
+        if is_empty:
             marks_earned = 0.0
+            is_correct = False
         
         else:
             
 
             if question.question_type == 'MCQ':
                 try:
-                    # 1. Fetch correct options for this question
                     correct_ids = set(question.options.filter(is_correct=True).values_list('id', flat=True))
-                    total_correct_count = len(correct_ids)
-
-                    # 2. Parse the submitted answer (Handle single ID or JSON list)
-                    raw_answer = submitted_answer
-                    if not raw_answer:
-                        selected_ids = set()
+                    
+                    # Parse the selection
+                    if isinstance(submitted_answer, list):
+                        selected_ids = set(map(int, submitted_answer))
                     else:
-                        try:
-                            # Try to parse JSON list: '["1", "2"]'
-                            parsed = json.loads(raw_answer)
-                            selected_ids = set(map(int, parsed)) if isinstance(parsed, list) else {int(parsed)}
-                        except (json.JSONDecodeError, ValueError):
-                            # Fallback for plain string ID: "1"
-                            selected_ids = {int(raw_answer)}
+                        parsed = json.loads(submitted_answer)
+                        selected_ids = set(map(int, parsed)) if isinstance(parsed, list) else {int(parsed)}
 
-                    # 3. Validation Logic
-                    wrong_selected = selected_ids - correct_ids
-                    correct_selected = selected_ids & correct_ids
-
-                    # RULE: Any wrong selection = 0 marks
-                    if len(wrong_selected) > 0:
-                        is_correct = False
-                        marks_earned = 0.0
-                    # RULE: No selection = 0 marks
-                    elif len(selected_ids) == 0:
-                        is_correct = False
+                    # RE-CHECK: If after parsing it's still empty (e.g. user submitted "[]")
+                    if not selected_ids:
                         marks_earned = 0.0
                     else:
-                        p = float(question.marks)
-                        n_selected = len(correct_selected)
+                        wrong_selected = selected_ids - correct_ids
+                        correct_selected = selected_ids & correct_ids
 
-                        if n_selected == total_correct_count:
-                            # ALL CORRECT: Full Marks
-                            marks_earned = p
+                        if len(wrong_selected) > 0:
+                            marks_earned = -abs(float(question.negative_marks))
+                            is_correct = False
+                        elif len(correct_selected) == len(correct_ids):
+                            marks_earned = float(question.marks)
                             is_correct = True
                         else:
-                            # PARTIAL CORRECT (and zero wrong): p/x * n
-                            # This ensures if P=4 and X=4, selecting 1 correct = 1 mark.
-                            marks_earned = (p / total_correct_count) * n_selected
-                            is_correct = False 
-                            
+                            # Partial logic
+                            marks_earned = (float(question.marks) / len(correct_ids)) * len(correct_selected)
+                            is_correct = False
                 except Exception as e:
-                    # Log error if needed: print(f"Error in MCQ evaluation: {e}")
-                    pass
+                    marks_earned = 0.0
 
             elif question.question_type == 'NUMERICAL':
                 try:
-                    if abs(float(submitted_answer) - float(question.correct_numerical)) < 0.001:
+                    # Robust check for empty/whitespace strings
+                    if not str(submitted_answer).strip():
+                        marks_earned = 0.0
+                        is_correct = False
+                    elif abs(float(submitted_answer) - float(question.correct_numerical)) < 0.001:
                         is_correct = True
                         marks_earned = float(question.marks)
+                    else:
+                        is_correct = False
+                        # question.negative_marks is a positive value in the DB
+                        marks_earned = -abs(float(question.negative_marks)) 
                 except (TypeError, ValueError):
-                    pass
+                    # If they type "abc" in a numerical field
+                    is_correct = False
+                    marks_earned = -abs(float(question.negative_marks))
+                    
 
             
             elif question.question_type == 'CODE':
                 test_cases = question.test_cases.all()
+                
                 all_passed = True
+
                 
                 lang_key = getattr(question, 'programming_language', 'python').lower()
 
@@ -376,19 +372,19 @@ class TestAttemptViewSet(viewsets.ModelViewSet):
 
         # 2. Calculate Negative Marks
         # Only penalize questions where an answer was actually provided but is incorrect
-        negative_total = 0.0
-        wrong_responses = attempt.responses.filter(is_correct=False).exclude(
-            models.Q(submitted_answer__isnull=True) | models.Q(submitted_answer="")
-        )
+        # negative_total = 0.0
+        # wrong_responses = attempt.responses.filter(is_correct=False).exclude(
+        #     models.Q(submitted_answer__isnull=True) | models.Q(submitted_answer="")
+        # )
         
-        for resp in wrong_responses:
-            # negative_total += float(resp.question.negative_marks)
-            if float(resp.marks_earned) == 0.0:
-                negative_total += float(resp.question.negative_marks)
+        # for resp in wrong_responses:
+        #     # negative_total += float(resp.question.negative_marks)
+        #     if float(resp.marks_earned) == 0.0:
+        #         negative_total += float(resp.question.negative_marks)
 
         # 3. Finalize Attempt
         # attempt.total_score = max(0.0, float(positive_total) - negative_total)
-        attempt.total_score = float(total_earned) - negative_total
+        attempt.total_score = float(total_earned)
         attempt.status = TestAttempt.Status.COMPLETED
         attempt.end_time = timezone.now()
         attempt.save()
