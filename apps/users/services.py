@@ -2,8 +2,10 @@ import redis
 import random
 import os
 from django.conf import settings
-import smtplib
-from email.mime.text import MIMEText
+from django.core.mail import send_mail
+import logging
+
+logger = logging.getLogger(__name__)
 
 redis_client = redis.from_url(
     os.getenv("REDIS_URL", "redis://redis:6379/0"),
@@ -26,18 +28,24 @@ def verify_otp(email, otp):
 
 
 def send_otp_email(email, otp):
-    msg = MIMEText(f"Your OTP is {otp}. Valid for 5 minutes.")
-    msg["Subject"] = "Verify your account"
-    msg["From"] = settings.EMAIL_HOST_USER
-    msg["To"] = email
+    """
+    Send OTP using Django's email backend (configured in settings.py).
+    This uses the EMAIL_BACKEND / EMAIL_HOST / EMAIL_PORT / EMAIL_USE_TLS
+    settings instead of raw smtplib, which is more reliable on cloud hosts
+    like Render where direct SMTP connections can be flaky or blocked.
+    """
+    subject = "Verify your account"
+    message = f"Your OTP is {otp}. Valid for 5 minutes."
+    from_email = settings.EMAIL_HOST_USER
 
-    
     try:
-        server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT)
-        server.starttls()
-        server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-        server.sendmail(settings.EMAIL_HOST_USER, email, msg.as_string())
-        server.quit()
-        print(f"OTP sent successfully to {email}")
+        send_mail(
+            subject,
+            message,
+            from_email,
+            [email],
+            fail_silently=False,
+        )
+        logger.info(f"OTP sent successfully to {email}")
     except Exception as e:
-        print(f"CRITICAL EMAIL ERROR: {e}")
+        logger.error(f"CRITICAL EMAIL ERROR for {email}: {e}", exc_info=True)

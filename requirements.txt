@@ -12,6 +12,7 @@ gunicorn
 itsdangerous
 imagekitio==4.2.0
 django-redis
+argon2-cffi
 
 whitenoise
 dj_database_url

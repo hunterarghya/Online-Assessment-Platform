@@ -132,6 +132,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Use Argon2 as primary hasher (no bcrypt C-lib dependency).
+# PBKDF2 kept as fallback so existing passwords still verify and auto-upgrade on next login.
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
@@ -193,6 +201,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('SENDER_EMAIL')
 EMAIL_HOST_PASSWORD = os.getenv('SENDER_PASSWORD')
+EMAIL_TIMEOUT = 10  # seconds — prevents hanging on Render if SMTP is slow
 
 IMAGEKIT_PUBLIC_KEY = os.getenv('IMAGEKIT_PUBLIC_KEY')
 IMAGEKIT_PRIVATE_KEY = os.getenv('IMAGEKIT_PRIVATE_KEY')
