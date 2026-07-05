@@ -1,29 +1,36 @@
-# import subprocess
+import subprocess
 
-# def evaluate_code_glot(language_key, source_code, stdin_data):
-#     try:
-#         # Run the code using a subprocess with a 5-second timeout
-#         # 'python3' is usually available in Django Docker image
-#         process = subprocess.Popen(
-#             ['python3', '-c', source_code],
-#             stdin=subprocess.PIPE,
-#             stdout=subprocess.PIPE,
-#             stderr=subprocess.PIPE,
-#             text=True
-#         )
+def evaluate_code_glot(language_key, source_code, stdin_data):
+    try:
+        # Run the code using a subprocess with a 5-second timeout
+        # 'python3' is usually available in Django Docker image
+        process = subprocess.Popen(
+            ['python3', '-c', source_code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
         
-#         stdout, stderr = process.communicate(input=stdin_data, timeout=5)
+        stdout, stderr = process.communicate(input=stdin_data, timeout=5)
         
-#         return {
-#             "stdout": stdout,
-#             "stderr": stderr,
-#             "error": None
-#         }
-#     except subprocess.TimeoutExpired:
-#         process.kill()
-#         return {"error": "Time Limit Exceeded", "stderr": "Code took too long to run."}
-#     except Exception as e:
-#         return {"error": str(e), "stderr": ""}
+        return {
+            "stdout": stdout,
+            "stderr": stderr,
+            "error": None
+        }
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return {"error": "Time Limit Exceeded", "stderr": "Code took too long to run."}
+    except Exception as e:
+        return {"error": str(e), "stderr": ""}
+
+
+
+
+
+
+
 
 # # import subprocess
 # # import os
@@ -102,7 +109,7 @@
 # #     except Exception as e:
 # #         return {"error": "System Error", "stderr": str(e)}
 
-def evaluate_code_glot(language_key, source_code, stdin_data):
+# def evaluate_code_glot(language_key, source_code, stdin_data):
     
-    return {"error": "Feature not ready", "stderr": "feature under development"}
+#     return {"error": "Feature not ready", "stderr": "feature under development"}
     

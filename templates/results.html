@@ -91,20 +91,50 @@
         border-left: 5px solid #dc3545;
         background: #fff5f5;
       }
+      .partial {
+        border-left: 5px solid #f0ad4e;
+        background: #fffdf5;
+      }
 
       .option {
-        padding: 5px;
-        margin: 3px 0;
-        border-radius: 3px;
+        padding: 8px 10px;
+        margin: 4px 0;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+        border: 1px solid transparent;
       }
-      .opt-correct {
-        background: #c3e6cb;
+      /* Correct answer that the student selected */
+      .opt-selected-correct {
+        background: #28a745;
+        color: #fff;
         font-weight: bold;
-      } /* Green background */
-      .opt-wrong {
-        background: #f5c6cb;
-        text-decoration: line-through;
-      } /* Red background */
+      }
+      /* Correct answer that the student did NOT select (missed) */
+      .opt-missed {
+        background: #d4edda;
+        color: #155724;
+        border: 1px dashed #28a745;
+      }
+      /* Wrong answer that the student selected */
+      .opt-selected-wrong {
+        background: #f8d7da;
+        color: #721c24;
+        font-weight: bold;
+        border: 1px solid #f5c6cb;
+      }
+      .opt-tag {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 8px;
+        white-space: nowrap;
+      }
+      .tag-correct { background: rgba(255,255,255,0.3); }
+      .tag-missed  { background: rgba(40,167,69,0.15); color: #155724; }
+      .tag-wrong   { background: rgba(220,53,69,0.15); color: #721c24; }
 
       pre {
         background: #272822;
@@ -279,17 +309,56 @@
         let paperHtml = `<div style="margin-bottom:20px;"><strong>Final Score: ${data.total_score}</strong></div>`;
 
         data.questions.forEach((q, index) => {
-          let statusClass = q.is_correct ? "correct" : "wrong";
           let content = `<h4>Q${index + 1}. ${q.question_text}</h4>`;
 
+          // Determine status class for the question card
+          let statusClass = "wrong";
+          if (q.is_correct) {
+            statusClass = "correct";
+          } else if (q.type === "MCQ" && q.marks_earned > 0) {
+            statusClass = "partial";
+          }
+
           if (q.type === "MCQ") {
+            // Parse submitted answer(s) into a Set of IDs
+            let selectedIds = new Set();
+            try {
+              if (q.submitted) {
+                let parsed = typeof q.submitted === 'string' ? JSON.parse(q.submitted) : q.submitted;
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(id => selectedIds.add(Number(id)));
+                } else {
+                  selectedIds.add(Number(parsed));
+                }
+              }
+            } catch(e) {
+              // If submitted is a plain number string
+              if (q.submitted) selectedIds.add(Number(q.submitted));
+            }
+
             content += q.options
               .map((opt) => {
+                const isSelected = selectedIds.has(opt.id);
+                const isCorrect = opt.is_correct;
+
                 let optClass = "";
-                if (opt.is_correct) optClass = "opt-correct";
-                if (opt.id == q.submitted && !opt.is_correct)
-                  optClass = "opt-wrong";
-                return `<div class="option ${optClass}">${opt.text} ${opt.is_correct ? "✓" : ""}</div>`;
+                let tag = "";
+
+                if (isSelected && isCorrect) {
+                  // Student picked this and it's correct → darker green
+                  optClass = "opt-selected-correct";
+                  tag = `<span class="opt-tag tag-correct">✓ Your answer</span>`;
+                } else if (isSelected && !isCorrect) {
+                  // Student picked this but it's wrong → red
+                  optClass = "opt-selected-wrong";
+                  tag = `<span class="opt-tag tag-wrong">✗ Your answer</span>`;
+                } else if (!isSelected && isCorrect) {
+                  // Student did NOT pick this but it's correct → light green, missed
+                  optClass = "opt-missed";
+                  tag = `<span class="opt-tag tag-missed">✓ Correct (missed)</span>`;
+                }
+
+                return `<div class="option ${optClass}"><span>${opt.text}</span>${tag}</div>`;
               })
               .join("");
           } else if (q.type === "NUMERICAL") {
