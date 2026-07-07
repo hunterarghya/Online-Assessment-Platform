@@ -16,7 +16,6 @@ pip-wheel-metadata/
 # Virtualenv / Poetry
 # =========================
 .env
-.env.*
 poetry.lock
 
 # =========================
