@@ -17,6 +17,9 @@ import json
 from django.conf import settings
 from imagekitio import ImageKit
 
+import os
+
+ALLOWLIST = os.getenv('ALLOWLIST')
 
 # 2. Use this specific setup for Version 5.2.0
 imagekit = ImageKit(
@@ -73,6 +76,9 @@ class LoginView(APIView):
         email = request.data.get("email")
         password = request.data.get("password")
         required_role = request.data.get("role")
+
+        if (not email==ALLOWLIST) and (required_role == 'TEACHER'):
+            return Response({"error":"Account not permitted"}, status=403)
 
         user_obj = User.objects.filter(email=email, role=required_role).first()
 
