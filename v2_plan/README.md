@@ -36,6 +36,7 @@ Detailed findings, architectural decisions, and refactoring blueprints have been
 | [**03. Refactor Roadmap & Priorities**](./03_refactor_roadmap_priorities.md) | Prioritization Framework | Categorized tasks across **Necessary (Must-have)**, **Recommended**, and **Ideal (Overkill)** with phased execution milestones. |
 | [**04. Backend Redesign & API Specification**](./04_backend_redesign_and_api_spec.md) | Backend Architecture & API Spec | Target folder structure, Service Layer pattern, DRF custom permissions, Celery async processing, and standardized API contracts. |
 | [**05. Frontend Architecture Plan**](./05_frontend_architecture_plan.md) | Frontend System Design | Target component hierarchy, state management, Exam Hall timer/proctoring resilience, and Test Composer state machine. |
+| [**06. Advanced Scaling & Architectural Explorations**](./06_advanced_scaling_and_architecture_explorations.md) | Microservices & Greenfield Scale | Go Chi sandbox runner, Elixir/Phoenix WebSockets, Nuxt 3 vs. React checklist, Keycloak IAM, and high-scale polyglot design. |
 
 ---
 
